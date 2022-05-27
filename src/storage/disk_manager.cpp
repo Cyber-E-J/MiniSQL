@@ -5,7 +5,7 @@
 #include "page/bitmap_page.h"
 #include "storage/disk_manager.h"
 
-DiskManager::DiskManager(const std::string &db_file) : file_name_(db_file) {
+DiskManager::DiskManager(const std::string &db_file) : file_name_(db_file){
   std::scoped_lock<std::recursive_mutex> lock(db_io_latch_);
   db_io_.open(db_file, std::ios::binary | std::ios::in | std::ios::out);
   // directory or file does not exist
@@ -21,6 +21,8 @@ DiskManager::DiskManager(const std::string &db_file) : file_name_(db_file) {
     }
   }
   ReadPhysicalPage(META_PAGE_ID, meta_data_);
+  Meta_Page_ = new DiskFileMetaPage(meta_data_);
+  Bitmap_Page_ = new BitmapPage<PAGE_SIZE>[MAX_VALID_PAGE_ID/DiskManager::BITMAP_SIZE];
 }
 
 void DiskManager::Close() {
@@ -41,21 +43,77 @@ void DiskManager::WritePage(page_id_t logical_page_id, const char *page_data) {
   WritePhysicalPage(MapPageId(logical_page_id), page_data);
 }
 
-page_id_t DiskManager::AllocatePage() {
-  ASSERT(false, "Not implemented yet.");
-  return INVALID_PAGE_ID;
+page_id_t DiskManager::AllocatePage(){
+  if(Meta_Page_->GetAllocatedPages()==MAX_VALID_PAGE_ID)//no free page
+    return INVALID_PAGE_ID;
+  //#pages of every extent
+  size_t SIZE = DiskManager::BITMAP_SIZE;   
+  //find the next_allocate_page
+  uint32_t extent;
+  uint32_t page_offset;
+  //find the extent that has free page to allocate 
+  for(extent = 0; extent < PAGE_SIZE/4; extent++)
+    if(Meta_Page_->GetExtentUsedPage(extent) >= DiskManager::BITMAP_SIZE)
+      //this extent has no free page to allocate 
+      continue;
+    else
+      //this extent has free page to allocate 
+      break;
+  if(extent >= Meta_Page_->GetExtentNums()){
+    //this extent has not been allocate
+    //need to allocate a new extent
+    //1. modify metapage
+    //1.1 modify num_extents_
+    Meta_Page_->num_extents_++;
+    //1.2 modify extent_used_page_
+    Meta_Page_->extent_used_page_[extent] = 1;
+  }
+  else Meta_Page_->extent_used_page_[extent]++; // modify extent_used_page_
+  Meta_Page_->num_allocated_pages_++;
+  //allocate page
+  if(!Bitmap_Page_[extent].AllocatePage(page_offset)) return INVALID_PAGE_ID;//fail
+  //write bit_map
+  WritePhysicalPage(extent*( SIZE + 1 ) + 1, (char *)Bitmap_Page_[extent].GetBitmap_Data());
+  //write meta_page
+  memcpy(meta_data_, &(Meta_Page_->num_allocated_pages_), sizeof(uint32_t));
+  memcpy(meta_data_ + sizeof(uint32_t), &(Meta_Page_->num_extents_), sizeof(uint32_t));
+  memcpy(meta_data_ + 2 * sizeof(uint32_t), Meta_Page_->extent_used_page_, (PAGE_SIZE - 8) / 4 * sizeof(uint32_t));
+  WritePhysicalPage(META_PAGE_ID, meta_data_);
+  page_id_t page_index = extent * SIZE + page_offset;
+  return page_index;
 }
 
 void DiskManager::DeAllocatePage(page_id_t logical_page_id) {
-  ASSERT(false, "Not implemented yet.");
+  size_t SIZE = DiskManager::BITMAP_SIZE;
+  uint32_t extent = logical_page_id / SIZE; //Get the corresponding extent
+  uint32_t page_offset = logical_page_id % SIZE;
+  if(!Bitmap_Page_[extent].DeAllocatePage(page_offset)) return;//fail
+  //write bit_map
+  WritePhysicalPage(extent*( SIZE + 1 ) + 1, (char *)Bitmap_Page_[extent].GetBitmap_Data());
+  Meta_Page_->num_allocated_pages_--;
+  Meta_Page_->extent_used_page_[extent]--;
+  if(Meta_Page_->GetExtentUsedPage(extent)==0)
+    Meta_Page_->num_extents_--;
+  //write meta_page
+  memcpy(meta_data_, &(Meta_Page_->num_allocated_pages_), sizeof(uint32_t));
+  memcpy(meta_data_ + sizeof(uint32_t), &(Meta_Page_->num_extents_), sizeof(uint32_t));
+  memcpy(meta_data_ + 2 * sizeof(uint32_t), Meta_Page_->extent_used_page_, (PAGE_SIZE - 8) / 4 * sizeof(uint32_t));
+  WritePhysicalPage(META_PAGE_ID, meta_data_);
 }
 
 bool DiskManager::IsPageFree(page_id_t logical_page_id) {
-  return false;
+  size_t SIZE=DiskManager::BITMAP_SIZE;
+  uint32_t extent = logical_page_id / SIZE; //Get the corresponding extent
+  uint32_t page_offset = logical_page_id % SIZE;
+  return Bitmap_Page_[extent].IsPageFree(page_offset);
 }
 
 page_id_t DiskManager::MapPageId(page_id_t logical_page_id) {
-  return 0;
+  size_t SIZE = DiskManager::BITMAP_SIZE;
+  uint32_t extent = logical_page_id / SIZE; //check the extent the page is in
+  uint32_t start = extent * ( SIZE + 1 ) + 1; //Get location of the corresponding bitmap
+  page_id_t physical_page_id = start + logical_page_id % SIZE + 1;
+  return physical_page_id;
 }
 
 int DiskManager::GetFileSize(const std::string &file_name) {

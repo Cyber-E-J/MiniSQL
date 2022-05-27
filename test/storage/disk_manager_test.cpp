@@ -33,7 +33,8 @@ TEST(DiskManagerTest, BitMapPageTest) {
   ASSERT_FALSE(bitmap->AllocatePage(ofs));
 }
 
-TEST(DiskManagerTest, DISABLED_FreePageAllocationTest) {
+//在FreePageAllocationTest前加DISABLED_就不进行该测试了
+TEST(DiskManagerTest, FreePageAllocationTest) {
   std::string db_name = "disk_test.db";
   DiskManager *disk_mgr = new DiskManager(db_name);
   int extent_nums = 2;

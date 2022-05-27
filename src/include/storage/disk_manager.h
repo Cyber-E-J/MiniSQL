@@ -100,7 +100,17 @@ private:
   // with multiple buffer pool instances, need to protect file access
   std::recursive_mutex db_io_latch_;
   bool closed{false};
+  //meta_data
+  // uint32_t num_allocated_pages_+
+  // uint32_t num_extents_+
+  // uint32_t extent_used_page_
   char meta_data_[PAGE_SIZE];
+  //adding necessary data structures
+  //bit_maps
+  BitmapPage<PAGE_SIZE> *Bitmap_Page_;
+  //meta_page
+  DiskFileMetaPage *Meta_Page_;
+  //
 };
 
 #endif
