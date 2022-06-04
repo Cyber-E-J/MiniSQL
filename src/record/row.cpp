@@ -1,25 +1,26 @@
 #include "record/row.h"
-
+#include<map>
+#include<iostream>
 uint32_t Row::SerializeTo(char *buf, Schema *schema) const {
   uint32_t len = 0;
-  MACH_WRITE_TO(RowId,buf,rid_);//åŠ å…¥rid
+  MACH_WRITE_TO(RowId,buf,rid_);//¼ÓÈërid
   len += sizeof(RowId);
-  MACH_WRITE_TO(size_t, buf + len, (size_t)fields_.size());  //åŠ å…¥åŸŸçš„æ•°ç»„å¤§å°
+  MACH_WRITE_TO(size_t, buf + len, (size_t)fields_.size());  //¼ÓÈëÓòµÄÊı×é´óĞ¡
   len += sizeof(size_t);
-  if (fields_.size() == 0) return len;//å¦‚æœä¸ºç©ºå¯ä»¥ç›´æ¥è¿”å›å•¦
+  if (fields_.size() == 0) return len;//Èç¹ûÎª¿Õ¿ÉÒÔÖ±½Ó·µ»ØÀ²
   size_t offset = 2;
   size_t size = fields_.size();
   size_t bitmap_bytes = (size + 7 + offset) / 8;
   std::vector<int> nulls(bitmap_bytes, 0);
   
-  for (size_t i = 0; i < fields_.size(); i++) {  //åŠ å…¥åŸŸ
+  for (size_t i = 0; i < fields_.size(); i++) {  //¼ÓÈëÓò
     if(fields_[i]->IsNull()){
       nulls[(i + offset) / 8] |= 1 << ((i + offset) % 8);
     }
   }
-  MACH_WRITE_TO(std::vector<int>, buf + len, nulls);  //åŠ å…¥null bitmapçš„æ•°ç»„
+  MACH_WRITE_TO(std::vector<int>, buf + len, nulls);  //¼ÓÈënull bitmapµÄÊı×é
   len += sizeof(nulls);
-  for (size_t i = 0; i < fields_.size(); i++) {  //åŠ å…¥åŸŸ
+  for (size_t i = 0; i < fields_.size(); i++) {  //¼ÓÈëÓò
     len += fields_[i]->SerializeTo(buf + len);
   }
   return len;
@@ -37,7 +38,7 @@ uint32_t Row::DeserializeFrom(char *buf, Schema *schema) {
      nulls= MACH_READ_FROM(std::vector<int>, buf + len);
      len += sizeof(nulls);
      uint32_t byte, bit, index;
-     bool color[size] = {false};
+     std::map<u_int32_t, bool> color;
      for (byte = 0; byte <= (size + offset) / 8; byte++) {
        for (bit = 0; bit < 8; bit++){
          index = 8 * byte + bit;
@@ -73,8 +74,9 @@ uint32_t Row::GetSerializedSize(Schema *schema) const {
   size_t bitmap_bytes = (size + 7 + offset) / 8;
   std::vector<int> tmp(bitmap_bytes, 0);
   uint32_t len = sizeof(RowId) + sizeof(size_t) + sizeof(tmp);
-  for (size_t i = 0; i < fields_.size(); i++) {  //åŠ å…¥åŸŸ
+  for (size_t i = 0; i < fields_.size(); i++) {  //¼ÓÈëÓò
     len += fields_[i]->GetSerializedSize();
   }
   return len;
 }
+
