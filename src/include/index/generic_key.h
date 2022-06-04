@@ -2,10 +2,10 @@
 #define MINISQL_GENERIC_KEY_H
 
 #include <cstring>
-
+#include <iostream>
 #include "record/row.h"
 #include "record/field.h"
-
+#include<iostream>
 template<size_t KeySize>
 class GenericKey {
 public:
@@ -15,6 +15,7 @@ public:
     ASSERT(key.GetFieldCount() == schema->GetColumnCount(), "field nums not match.");
     ASSERT(size <= KeySize, "Index key size exceed max key size.");
     memset(data, 0, KeySize);
+    // std::cout<<"t0"<<std::endl;
     key.SerializeTo(data, schema);
   }
 
