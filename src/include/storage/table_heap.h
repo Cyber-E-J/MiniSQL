@@ -1,11 +1,11 @@
 #ifndef MINISQL_TABLE_HEAP_H
 #define MINISQL_TABLE_HEAP_H
-
+#pragma once
 #include "buffer/buffer_pool_manager.h"
 #include "page/table_page.h"
-#include "storage/table_iterator.h"
 #include "transaction/log_manager.h"
 #include "transaction/lock_manager.h"
+#include "storage/table_iterator.h"
 
 class TableHeap {
   friend class TableIterator;
@@ -48,7 +48,7 @@ public:
    * @param[in] txn Transaction performing the update
    * @return true is update is successful.
    */
-  bool UpdateTuple(const Row &row, const RowId &rid, Transaction *txn);
+  bool UpdateTuple(Row &row, const RowId &rid, Transaction *txn);
 
   /**
    * Called on Commit/Abort to actually delete a tuple or rollback an insert.
@@ -102,8 +102,8 @@ private:
           schema_(schema),
           log_manager_(log_manager),
           lock_manager_(lock_manager) {
-    first_page_id_=INVALID_PAGE_ID;        
-    //ASSERT(false, "Not implemented yet.");
+    first_page_id_ = INVALID_PAGE_ID;
+    // ASSERT(false, "Not implemented yet.");
   };
 
   /**
