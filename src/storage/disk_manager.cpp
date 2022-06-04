@@ -112,7 +112,6 @@ page_id_t DiskManager::MapPageId(page_id_t logical_page_id) {
   uint32_t extent = logical_page_id / SIZE; //check the extent the page is in
   uint32_t start = extent * ( SIZE + 1 ) + 1; //Get location of the corresponding bitmap
   page_id_t physical_page_id = start + logical_page_id % SIZE + 1;
-  LOG(INFO)<<"physical_page_id: "<<physical_page_id<<std::endl;
   return physical_page_id;
 }
 
