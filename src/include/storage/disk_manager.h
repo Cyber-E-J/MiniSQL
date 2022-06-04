@@ -107,7 +107,7 @@ private:
   char meta_data_[PAGE_SIZE];
   //adding necessary data structures
   //bit_maps
-  BitmapPage<PAGE_SIZE> *Bitmap_Page_;
+  BitmapPage<PAGE_SIZE> Bitmap_Page_[MAX_VALID_PAGE_ID/BITMAP_SIZE];
   //meta_page
   DiskFileMetaPage *Meta_Page_;
   //
