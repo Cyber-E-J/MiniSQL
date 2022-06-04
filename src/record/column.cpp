@@ -1,5 +1,6 @@
 #include "record/column.h"
 #include "record/schema.h"
+#include <iostream>
 Column::Column(std::string column_name, TypeId type, uint32_t index, bool nullable, bool unique)
         : name_(std::move(column_name)), type_(type), table_ind_(index),
           nullable_(nullable), unique_(unique) {
@@ -32,7 +33,7 @@ uint32_t Column::SerializeTo(char *buf) const {
     uint32_t len = 0;
     MACH_WRITE_UINT32(buf, COLUMN_MAGIC_NUM );//加入魔数
     len += sizeof(uint32_t);
-    MACH_WRITE_UINT32(buf+len, this->GetLength() );//加入列名长度
+    MACH_WRITE_UINT32(buf+len,name_.length());//加入列名长度
     len += sizeof(uint32_t);
     MACH_WRITE_STRING(buf+len, name_ );//加入列名
     len += name_.length();
@@ -40,19 +41,17 @@ uint32_t Column::SerializeTo(char *buf) const {
     len += sizeof(TypeId);
     MACH_WRITE_UINT32(buf+len, table_ind_ );//加入col_ind_
     len += sizeof(uint32_t);
+    MACH_WRITE_UINT32(buf+len, len_ );//加入len_
+    len += sizeof(uint32_t);
     MACH_WRITE_TO(bool,buf+len, nullable_);//加入nullable
     len += sizeof(bool);
     MACH_WRITE_TO(bool,buf+len, unique_);//加入unique
     len += sizeof(bool);
     return len;
-
 }
 
 uint32_t Column::GetSerializedSize() const{
-  if (this->nullable_) {
-    return 0;
-  }
-  uint32_t len = sizeof(uint32_t) * 3 + sizeof(bool) * 2 + sizeof(TypeId) + this->name_.length();
+  uint32_t len = sizeof(uint32_t) * 4 + sizeof(bool) * 2 + sizeof(TypeId) + this->name_.length();
   return len;
 }
 
@@ -67,17 +66,25 @@ uint32_t Column::DeserializeFrom(char *buf,Column *&column,MemHeap *heap){
   len += sizeof(uint32_t);
   uint32_t column_name_len = MACH_READ_UINT32(buf + len);//取出列名长度
   len += sizeof(uint32_t);
-  char* column_name=new char[column_name_len];
-  memcpy(column_name,buf+len,column_name_len);//取出列名
+  char *column_name = new char[column_name_len + 1];
+  column_name[column_name_len] = 0;
+  memcpy(column_name, buf + len, column_name_len);  //取出列名
   len += column_name_len;
   TypeId type = MACH_READ_FROM(TypeId, buf + len);//取出type
   len += sizeof(TypeId);
   uint32_t col_ind=MACH_READ_UINT32(buf + len); //取出colind
   len+=sizeof(uint32_t);
+  uint32_t _len=MACH_READ_UINT32(buf+len);//取出len
+  len += sizeof(uint32_t);
   bool nullable=MACH_READ_FROM(bool,buf+len); //取出nullable
   len+=sizeof(bool);
   bool unique=MACH_READ_FROM(bool,buf+len); //取出nullable
   len+=sizeof(bool);
-  column = new(mem)Column(column_name, type, col_ind, nullable, unique);
+  if(type== kTypeChar){
+    column = new(mem)Column(column_name, type,_len, col_ind, nullable, unique);
+  }else{
+    column = new(mem)Column(column_name, type, col_ind, nullable, unique);
+  }
+  
   return len; 
 }
