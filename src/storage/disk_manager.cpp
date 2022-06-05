@@ -22,12 +22,32 @@ DiskManager::DiskManager(const std::string &db_file) : file_name_(db_file){
   }
   ReadPhysicalPage(META_PAGE_ID, meta_data_);
   Meta_Page_ = new DiskFileMetaPage(meta_data_);
+  uint32_t num = Meta_Page_->num_extents_;
+  for (uint32_t i = 0; i < num; ++i) {
+    //Bitmap_Page_[i] = new BitmapPage<PAGE_SIZE>();
+    //if(i < num){
+      char *bitmap_data = new char[DiskManager::BITMAP_SIZE];
+      ReadPhysicalPage(i * (DiskManager::BITMAP_SIZE + 1) + 1, bitmap_data);
+      memcpy(Bitmap_Page_[i].GetBitmap_Data(), bitmap_data, DiskManager::BITMAP_SIZE);
+      delete [] bitmap_data;
+    //}
+  }
 }
 
 void DiskManager::Close() {
+  memcpy(meta_data_, &(Meta_Page_->num_allocated_pages_), sizeof(uint32_t));
+  memcpy(meta_data_ + sizeof(uint32_t), &(Meta_Page_->num_extents_), sizeof(uint32_t));
+  memcpy(meta_data_ + 2 * sizeof(uint32_t), Meta_Page_->extent_used_page_, (PAGE_SIZE - 8) / 4 * sizeof(uint32_t));
+  WritePhysicalPage(META_PAGE_ID, meta_data_);
+  uint32_t SIZE = DiskManager::BITMAP_SIZE;
+  for(uint32_t extent = 0; extent < Meta_Page_->num_extents_; extent++){
+    WritePhysicalPage(extent*( SIZE + 1 ) + 1, (char *)Bitmap_Page_[extent].GetBitmap_Data());
+  //delete Bitmap_Page_[extent];
+  }
+  delete Meta_Page_;
   std::scoped_lock<std::recursive_mutex> lock(db_io_latch_);
   if (!closed) {
-    db_io_.close();
+     db_io_.close();
     closed = true;
   }
 }
@@ -72,12 +92,12 @@ page_id_t DiskManager::AllocatePage(){
   //allocate page
   if(!Bitmap_Page_[extent].AllocatePage(page_offset)) return INVALID_PAGE_ID;//fail
   //write bit_map
-  WritePhysicalPage(extent*( SIZE + 1 ) + 1, (char *)Bitmap_Page_[extent].GetBitmap_Data());
+  //WritePhysicalPage(extent*( SIZE + 1 ) + 1, (char *)Bitmap_Page_[extent].GetBitmap_Data());
   //write meta_page
   memcpy(meta_data_, &(Meta_Page_->num_allocated_pages_), sizeof(uint32_t));
   memcpy(meta_data_ + sizeof(uint32_t), &(Meta_Page_->num_extents_), sizeof(uint32_t));
   memcpy(meta_data_ + 2 * sizeof(uint32_t), Meta_Page_->extent_used_page_, (PAGE_SIZE - 8) / 4 * sizeof(uint32_t));
-  WritePhysicalPage(META_PAGE_ID, meta_data_);
+  //WritePhysicalPage(META_PAGE_ID, meta_data_);
   page_id_t page_index = extent * SIZE + page_offset;
   return page_index;
 }
@@ -88,7 +108,7 @@ void DiskManager::DeAllocatePage(page_id_t logical_page_id) {
   uint32_t page_offset = logical_page_id % SIZE;
   if(!Bitmap_Page_[extent].DeAllocatePage(page_offset)) return;//fail
   //write bit_map
-  WritePhysicalPage(extent*( SIZE + 1 ) + 1, (char *)Bitmap_Page_[extent].GetBitmap_Data());
+  //WritePhysicalPage(extent*( SIZE + 1 ) + 1, (char *)Bitmap_Page_[extent].GetBitmap_Data());
   Meta_Page_->num_allocated_pages_--;
   Meta_Page_->extent_used_page_[extent]--;
   if(Meta_Page_->GetExtentUsedPage(extent)==0)
@@ -97,7 +117,7 @@ void DiskManager::DeAllocatePage(page_id_t logical_page_id) {
   memcpy(meta_data_, &(Meta_Page_->num_allocated_pages_), sizeof(uint32_t));
   memcpy(meta_data_ + sizeof(uint32_t), &(Meta_Page_->num_extents_), sizeof(uint32_t));
   memcpy(meta_data_ + 2 * sizeof(uint32_t), Meta_Page_->extent_used_page_, (PAGE_SIZE - 8) / 4 * sizeof(uint32_t));
-  WritePhysicalPage(META_PAGE_ID, meta_data_);
+  //WritePhysicalPage(META_PAGE_ID, meta_data_);
 }
 
 bool DiskManager::IsPageFree(page_id_t logical_page_id) {
@@ -114,6 +134,7 @@ page_id_t DiskManager::MapPageId(page_id_t logical_page_id) {
   page_id_t physical_page_id = start + logical_page_id % SIZE + 1;
   return physical_page_id;
 }
+
 
 int DiskManager::GetFileSize(const std::string &file_name) {
   struct stat stat_buf;
