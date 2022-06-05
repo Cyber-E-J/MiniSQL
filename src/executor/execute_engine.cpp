@@ -1,5 +1,6 @@
 #include "executor/execute_engine.h"
 #include "glog/logging.h"
+#include <vector>
 
 ExecuteEngine::ExecuteEngine() {
 
@@ -58,42 +59,75 @@ dberr_t ExecuteEngine::ExecuteCreateDatabase(pSyntaxNode ast, ExecuteContext *co
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteCreateDatabase" << std::endl;
 #endif
-  return DB_FAILED;
+  if(ast->type_ != kNodeCreateDB) return DB_FAILED;
+  std::string value = ast->child_->val_;
+  if(dbs_.find(value) != dbs_.end())
+  {
+      std::cout<<"The Database named "<<value<<" already exists"<<std::endl;
+      return DB_FAILED;
+  }
+  DBStorageEngine * dbhead = new DBStorageEngine(value);
+  dbs_[value] = dbhead;
+  puts("Successfully create dbs\n");
+  //return DB_FAILED;
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteDropDatabase(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteDropDatabase" << std::endl;
 #endif
-  return DB_FAILED;
+  std::string value = ast->child_->val_;
+  delete dbs_[value];
+  dbs_.erase(value);
+  puts("Successfully delete dbs\n");
+  //return DB_FAILED;
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteShowDatabases(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteShowDatabases" << std::endl;
 #endif
-  return DB_FAILED;
+  puts("----- All databases are shown below -----\n");
+  for(auto iter = dbs_.begin(); iter != dbs_.end(); ++iter)
+      std::cout<<iter->first<<"\n";
+  //return DB_FAILED;
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteUseDatabase(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteUseDatabase" << std::endl;
 #endif
-  return DB_FAILED;
+  std::string value = ast->child_->val_;
+  if(dbs_.count(value) == 0)
+      puts("Invalid Input\n");
+  else current_db_ = value, cur_db = dbs_[value];
+  //return DB_FAILED;
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteShowTables(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteShowTables" << std::endl;
 #endif
-  return DB_FAILED;
+  std::cout<<"----- Show Tables -----"<<std::endl;
+  vector<TableInfo* > Tables;
+  cur_db->catalog_mgr_->GetTables(Tables);
+  for(auto iter = Tables.begin(); iter < Tables.end(); ++iter)
+      std::cout<<(*iter)->GetTableName()<<std::endl;
+  //return DB_FAILED;
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteCreateTable" << std::endl;
 #endif
-  return DB_FAILED;
+  //return DB_FAILED;
+
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteDropTable(pSyntaxNode ast, ExecuteContext *context) {
