@@ -5,7 +5,7 @@
 #include "common/dberr.h"
 #include "common/instance.h"
 #include "transaction/transaction.h"
-#include <cstring>
+#include <string>
 
 extern "C" {
 #include "parser/parser.h"
