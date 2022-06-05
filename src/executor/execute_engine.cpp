@@ -126,22 +126,103 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
   LOG(INFO) << "ExecuteCreateTable" << std::endl;
 #endif
   //return DB_FAILED;
+  pSyntaxNode  p_column = ast->child_->next_->child_;
+  string table_name = ast->child_->val_;
+  vector<Column* > vec_column;
+  while(p_column != nullptr && p_column->type_ == kNodeColumnDefinition)
+  {
+      bool unique = 0;
+      if(p_column->val_ != nullptr)
+          if(strcmp(p_column->val_, "unique") == 0) unique = 1;
+      string name_column = p_column->child_->val_;
+      string type_column = p_column->child_->next_->val_;
+      Column * cur; int count = 0;
+      if(type_column == "int") cur = new Column(name_column, kTypeInt, count, 1, unique);
+      else if(type_column == "float") cur = new Column(name_column, kTypeFloat, count, 1, unique);
+      else if(type_column == "char")
+      {
+          long unsigned int is_deci = -1;
+          string len_type = p_column->child_->next_->child_->val_;
+          if(len_type.find('.') != is_deci)
+          {
+              std::cout<<"String length can't be a decimal"<<std::endl;
+              return DB_FAILED;
+          }
+          int is_nega = atoi(p_column->child_->next_->child_->val_);
+          if(is_nega < 0)
+          {
+              std::cout<<"String length can't be a negative"<<std::endl;
+              return DB_FAILED;
+          }
+          cur = new Column(name_column, kTypeChar, is_nega, count, 1, unique);
+      }
+      else
+      {
+          std::cout<<"Type Error"<<std::endl;
+          return DB_FAILED;
+      }
+      vec_column.push_back(cur); p_column = p_column->next_;
+      ++count;
+  }
 
-  return DB_SUCCESS;
+  TableInfo * table_info_ = nullptr;
+  Schema * sch_= new Schema(vec_column);
+  dberr_t is_Exist = cur_db->catalog_mgr_->CreateTable(table_name, sch_, nullptr, table_info_);
+
+  if(is_Exist == DB_TABLE_ALREADY_EXIST)
+  {
+      std::cout<<"Table already exist"<<std::endl;
+      return is_Exist;
+  }
+  if(p_column != nullptr)
+  {
+      pSyntaxNode  p_key = p_column->child_;
+      vector<string> primary_key;
+      while(p_key != nullptr)
+      {
+          string name_key = p_key->val_;
+          primary_key.push_back(name_key);
+          std::cout<<"key name : "<<name_key<<std::endl;
+          p_key = p_key->next_;
+      }
+
+      CatalogManager * cur_cata = cur_db->catalog_mgr_;
+      IndexInfo * index_info = nullptr;
+      string name_index = table_name + "_pk";
+      std::cout<<"index name : "<<name_index<<std::endl;
+      cur_cata->CreateIndex(table_name, name_index, primary_key, nullptr, index_info);
+  }
+  //return DB_SUCCESS;
+  return is_Exist;
 }
 
 dberr_t ExecuteEngine::ExecuteDropTable(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteDropTable" << std::endl;
 #endif
-  return DB_FAILED;
+  //return DB_FAILED;
+  dberr_t is_Drop = cur_db->catalog_mgr_->DropTable(ast->child_->val_);
+  if(is_Drop == DB_TABLE_NOT_EXIST) std::cout<<"Table isn't exist"<<std::endl;
+  return is_Drop;
 }
 
 dberr_t ExecuteEngine::ExecuteShowIndexes(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteShowIndexes" << std::endl;
 #endif
-  return DB_FAILED;
+  std::cout<<"----- Show Indexes -----"<<std::endl;
+  vector<TableInfo* > Tables;
+  cur_db->catalog_mgr_->GetTables(Tables);
+  for(auto iter = Tables.begin(); iter < Tables.end(); ++iter)
+  {
+      std::cout<<"Index "<<(*iter)->GetTableName()<<" : "<<std::endl;
+      vector<IndexInfo* > Indexes;
+      cur_db->catalog_mgr_->GetTableIndexes((*iter)->GetTableName(), Indexes);
+      for(auto iter2 = Indexes.begin(); iter2 < Indexes.end(); ++iter2)
+          cout<<(*iter2)->GetIndexName()<<std::endl;
+  }
+  //return DB_FAILED;
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *context) {
