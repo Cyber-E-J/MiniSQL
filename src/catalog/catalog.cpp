@@ -161,7 +161,7 @@ dberr_t CatalogManager::CreateIndex(const std::string &table_name, const string 
   //no table
   auto iter = table_names_.find(table_name);
   if(iter == table_names_.end()){
-    LOG(ERROR)<<"No table named "<<table_name<<endl;
+    LOG(WARNING)<<"No table named "<<table_name<<endl;
     return DB_TABLE_NOT_EXIST;
   }
   // create index_info
@@ -181,7 +181,10 @@ dberr_t CatalogManager::CreateIndex(const std::string &table_name, const string 
   //find index key map
   for(auto key : index_keys){
     uint32_t index_key_id;
-    schema->GetColumnIndex(key, index_key_id);
+    if(schema->GetColumnIndex(key, index_key_id)==DB_COLUMN_NAME_NOT_EXIST){
+      LOG(WARNING)<<"COLUMN NAME NOT EXIST"<<endl;
+      return DB_COLUMN_NAME_NOT_EXIST;
+    }
     index_key_map.push_back(index_key_id);
   }
   IndexMetadata *index_meta = IndexMetadata::Create(index_id, index_name, table_id, index_key_map, index_info->GetMemHeap());
