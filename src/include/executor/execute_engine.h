@@ -1,11 +1,11 @@
 #ifndef MINISQL_EXECUTE_ENGINE_H
 #define MINISQL_EXECUTE_ENGINE_H
 
-#include <string>
 #include <unordered_map>
 #include "common/dberr.h"
 #include "common/instance.h"
 #include "transaction/transaction.h"
+#include <cstring>
 
 extern "C" {
 #include "parser/parser.h"
@@ -82,6 +82,7 @@ private:
 private:
   [[maybe_unused]] std::unordered_map<std::string, DBStorageEngine *> dbs_;  /** all opened databases */
   [[maybe_unused]] std::string current_db_;  /** current database */
+  DBStorageEngine * cur_db;
 };
 
 #endif //MINISQL_EXECUTE_ENGINE_H
