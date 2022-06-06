@@ -25,9 +25,9 @@ TEST(BPlusTreeTests, SampleTest) {
     delete_seq.push_back(i);
   }
   // Shuffle data
-  ShuffleArray(keys);
-  ShuffleArray(values);
-  ShuffleArray(delete_seq);
+  //ShuffleArray(keys);
+  //ShuffleArray(values);
+  //ShuffleArray(delete_seq);
   // Map key value
   for (int i = 0; i < n; i++) {
     kv_map[keys[i]] = values[i];
@@ -35,6 +35,8 @@ TEST(BPlusTreeTests, SampleTest) {
   // Insert data
   for (int i = 0; i < n; i++) {
     tree.Insert(keys[i], values[i]);
+    tree.PrintTree(mgr[0]);
+    
   }
   ASSERT_TRUE(tree.Check());
   // Print tree
@@ -46,7 +48,7 @@ TEST(BPlusTreeTests, SampleTest) {
     ASSERT_EQ(kv_map[i], ans[i]);
   }
   ASSERT_TRUE(tree.Check());
-  // Delete half keys
+  //Delete half keys
   for (int i = 0; i < n / 2; i++) {
     tree.Remove(delete_seq[i]);
   }

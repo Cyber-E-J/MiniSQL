@@ -85,7 +85,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
   }
 
   int index = KeyIndex(key,comparator);
-  //if(index!=GetSize()) return GetSize();
+  if(index!=GetSize()&&comparator(key,KeyAt(index))==0) return GetSize();
 
   for(int i=GetSize();i>index;i--){
     array_[i] = array_[i-1];

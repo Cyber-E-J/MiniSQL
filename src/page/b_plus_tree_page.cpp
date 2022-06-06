@@ -15,7 +15,7 @@ bool BPlusTreePage::IsRootPage() const {
 }
 
 void BPlusTreePage::SetPageType(IndexPageType page_type) {
-  this->page_type_ = page_type_;
+  this->page_type_ = page_type;
 }
 
 /*
