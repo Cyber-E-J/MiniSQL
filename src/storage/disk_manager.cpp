@@ -10,6 +10,8 @@ DiskManager::DiskManager(const std::string &db_file) : file_name_(db_file){
   db_io_.open(db_file, std::ios::binary | std::ios::in | std::ios::out);
   // directory or file does not exist
   if (!db_io_.is_open()) {
+    memset(meta_data_,0,PAGE_SIZE);
+    Meta_Page_ = new DiskFileMetaPage(meta_data_);
     db_io_.clear();
     // create a new file
     db_io_.open(db_file, std::ios::binary | std::ios::trunc | std::ios::out);
@@ -20,17 +22,19 @@ DiskManager::DiskManager(const std::string &db_file) : file_name_(db_file){
       throw std::exception();
     }
   }
-  ReadPhysicalPage(META_PAGE_ID, meta_data_);
-  Meta_Page_ = new DiskFileMetaPage(meta_data_);
-  uint32_t num = Meta_Page_->num_extents_;
-  for (uint32_t i = 0; i < num; ++i) {
-    //Bitmap_Page_[i] = new BitmapPage<PAGE_SIZE>();
-    //if(i < num){
-      char *bitmap_data = new char[DiskManager::BITMAP_SIZE];
-      ReadPhysicalPage(i * (DiskManager::BITMAP_SIZE + 1) + 1, bitmap_data);
-      memcpy(Bitmap_Page_[i].GetBitmap_Data(), bitmap_data, DiskManager::BITMAP_SIZE);
-      delete [] bitmap_data;
-    //}
+  else{
+    ReadPhysicalPage(META_PAGE_ID, meta_data_);
+    Meta_Page_ = new DiskFileMetaPage(meta_data_);
+    uint32_t num = Meta_Page_->num_extents_;
+    for (uint32_t i = 0; i < num; ++i) {
+      //Bitmap_Page_[i] = new BitmapPage<PAGE_SIZE>();
+      //if(i < num){
+        char *bitmap_data = new char[DiskManager::BITMAP_SIZE];
+        ReadPhysicalPage(i * (DiskManager::BITMAP_SIZE + 1) + 1, bitmap_data);
+        memcpy(Bitmap_Page_[i].GetBitmap_Data(), bitmap_data, DiskManager::BITMAP_SIZE);
+        delete [] bitmap_data;
+      //}
+    }
   }
 }
 
