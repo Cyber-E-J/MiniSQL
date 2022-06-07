@@ -6,6 +6,14 @@ INDEX_TEMPLATE_ARGUMENTS INDEXITERATOR_TYPE::IndexIterator() {
 
 }
 
+INDEX_TEMPLATE_ARGUMENTS INDEXITERATOR_TYPE::IndexIterator(LeafPage* leaf_page , int index_in_tree, BufferPoolManager* buffer_pool_manager) {
+
+  leaf_page_ = leaf_page;
+  index_in_tree_ = index_in_tree;
+  buffer_pool_manager_ = buffer_pool_manager;
+
+}
+
 INDEX_TEMPLATE_ARGUMENTS INDEXITERATOR_TYPE::~IndexIterator() {
 
 }

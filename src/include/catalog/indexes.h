@@ -50,6 +50,7 @@ private:
  * The IndexInfo class maintains metadata about a index.
  */
 class IndexInfo {
+  friend class CatalogManager;
 public:
   static IndexInfo *Create(MemHeap *heap) {
     void *buf = heap->Allocate(sizeof(IndexInfo));
@@ -62,12 +63,17 @@ public:
 
   void Init(IndexMetadata *meta_data, TableInfo *table_info, BufferPoolManager *buffer_pool_manager) {
     // Step1: init index metadata and table info
+    this -> meta_data_ = meta_data;
+    this -> table_info_ = table_info;
     // Step2: mapping index key to key schema
+    this -> key_schema_ = Schema::ShallowCopySchema(table_info_->GetSchema(), meta_data_->GetKeyMapping(), heap_);
     // Step3: call CreateIndex to create the index
-    ASSERT(false, "Not Implemented yet.");
+    this -> index_ = CreateIndex(buffer_pool_manager);
   }
 
   inline Index *GetIndex() { return index_; }
+
+  inline index_id_t GetIndexId() const { return meta_data_->GetIndexId(); }
 
   inline std::string GetIndexName() { return meta_data_->GetIndexName(); }
 
@@ -82,15 +88,52 @@ private:
                          key_schema_{nullptr}, heap_(new SimpleMemHeap()) {}
 
   Index *CreateIndex(BufferPoolManager *buffer_pool_manager) {
-    ASSERT(false, "Not Implemented yet.");
-    return nullptr;
+    uint32_t max_len = 0;
+    for (uint32_t i = 0; i < key_schema_->GetColumnCount(); i++)
+      max_len = std::max(max_len, key_schema_->GetColumn(i)->GetLength());
+    if(max_len == 0) return nullptr;
+    else if(max_len <= 4) {
+      using INDEX_KEY_TYPE = GenericKey<4>;
+      using INDEX_COMPARATOR_TYPE = GenericComparator<4>;
+      using BP_TREE_INDEX = BPlusTreeIndex<INDEX_KEY_TYPE, RowId, INDEX_COMPARATOR_TYPE>;
+      return ALLOC_P(heap_, BP_TREE_INDEX)(meta_data_->GetIndexId(), key_schema_, buffer_pool_manager);
+    }
+    else if(max_len <= 8) {
+      using INDEX_KEY_TYPE = GenericKey<8>;
+      using INDEX_COMPARATOR_TYPE = GenericComparator<8>;
+      using BP_TREE_INDEX = BPlusTreeIndex<INDEX_KEY_TYPE, RowId, INDEX_COMPARATOR_TYPE>;
+      return ALLOC_P(heap_, BP_TREE_INDEX)(meta_data_->GetIndexId(), key_schema_, buffer_pool_manager);
+    }
+    else if(max_len <= 16) {
+      using INDEX_KEY_TYPE = GenericKey<16>;
+      using INDEX_COMPARATOR_TYPE = GenericComparator<16>;
+      using BP_TREE_INDEX = BPlusTreeIndex<INDEX_KEY_TYPE, RowId, INDEX_COMPARATOR_TYPE>;
+      return ALLOC_P(heap_, BP_TREE_INDEX)(meta_data_->GetIndexId(), key_schema_, buffer_pool_manager);
+    }
+    else if(max_len <= 32) {
+      using INDEX_KEY_TYPE = GenericKey<32>;
+      using INDEX_COMPARATOR_TYPE = GenericComparator<32>;
+      using BP_TREE_INDEX = BPlusTreeIndex<INDEX_KEY_TYPE, RowId, INDEX_COMPARATOR_TYPE>;
+      return ALLOC_P(heap_, BP_TREE_INDEX)(meta_data_->GetIndexId(), key_schema_, buffer_pool_manager);
+    }
+    else if(max_len <= 64) {
+      using INDEX_KEY_TYPE = GenericKey<64>;
+      using INDEX_COMPARATOR_TYPE = GenericComparator<64>;
+      using BP_TREE_INDEX = BPlusTreeIndex<INDEX_KEY_TYPE, RowId, INDEX_COMPARATOR_TYPE>;
+      return ALLOC_P(heap_, BP_TREE_INDEX)(meta_data_->GetIndexId(), key_schema_, buffer_pool_manager);
+    }
+    else {
+      throw("Index key length is too long");
+      return nullptr;
+    }
+    return new BPlusTreeIndex<GenericKey<64>, RowId, GenericComparator<64>>(meta_data_->GetIndexId(), key_schema_, buffer_pool_manager);
   }
 
 private:
   IndexMetadata *meta_data_;
-  Index *index_;
-  TableInfo *table_info_;
-  IndexSchema *key_schema_;
+  Index *index_;//索引操作对象
+  TableInfo *table_info_;//索引对应的表信息
+  IndexSchema *key_schema_;//索引模式信息
   MemHeap *heap_;
 };
 
