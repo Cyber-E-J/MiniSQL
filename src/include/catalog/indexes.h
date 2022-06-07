@@ -123,7 +123,7 @@ private:
       return ALLOC_P(heap_, BP_TREE_INDEX)(meta_data_->GetIndexId(), key_schema_, buffer_pool_manager);
     }
     else {
-      throw("Index key length is too long");
+      LOG(WARNING)<<"Index key length is too long"<<std::endl;
       return nullptr;
     }
     return new BPlusTreeIndex<GenericKey<64>, RowId, GenericComparator<64>>(meta_data_->GetIndexId(), key_schema_, buffer_pool_manager);
