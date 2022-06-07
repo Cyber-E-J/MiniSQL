@@ -170,7 +170,7 @@ N *BPLUSTREE_TYPE::Split(N *node) {
       old_leaf_node->MoveHalfTo(new_leaf_node);
 
       new_leaf_node->SetNextPageId(old_leaf_node->GetNextPageId());
-      old_leaf_node->SetNextPageId(new_leaf_node->GetNextPageId());
+      old_leaf_node->SetNextPageId(new_leaf_node->GetPageId());
 
       new_node = reinterpret_cast<N*>(new_leaf_node);
 
@@ -360,18 +360,19 @@ bool BPLUSTREE_TYPE::Coalesce(N **neighbor_node, N **node,
                               BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> **parent, int index,
                               Transaction *transaction) {
   bool is_leaf = (*node) -> IsLeafPage();
-
+  //bool flag = false;
   //最左节点
   if(index == 0){
 
     if(is_leaf){ //最左边的叶节点
       Page* first_page = FindLeafPage((*node)->KeyAt(1),true);
       LeafPage* first_node = reinterpret_cast<LeafPage*>(first_page->GetData());
-      if((*node)->GetPageId()!=first_node->GetPageId()){
-        while(true){
+      if((*node)->GetPageId()!=first_node->GetPageId()){//不是整个树最左边的节点
+        while(true){//从叶子结点底层获得并更新NextPageId
           if(first_node->GetNextPageId() == (*node)->GetPageId()){
             first_node->SetNextPageId((*neighbor_node)->GetPageId());
             break;
+            
           }
 
           page_id_t next_page_id = first_node->GetNextPageId();
@@ -390,15 +391,30 @@ bool BPLUSTREE_TYPE::Coalesce(N **neighbor_node, N **node,
       rear_leaf->MoveAllTo(front_leaf);
       front_leaf->MoveAllTo(rear_leaf);
 
+      
+
     }
 
-    else{
+    else{//在最左边的中间节点
       InternalPage * front_leaf = reinterpret_cast<InternalPage*>(*node);
       InternalPage * rear_leaf = reinterpret_cast<InternalPage*>(*neighbor_node);
       rear_leaf->MoveAllTo(front_leaf,(*parent)->KeyAt(1),buffer_pool_manager_);
       front_leaf->MoveAllTo(rear_leaf,(*parent)->KeyAt(1),buffer_pool_manager_);
+
     }
-    //(*parent)->SetKeyAt(1, (*parent)->KeyAt(0));
+    (*parent)->SetKeyAt(1,((*parent)->KeyAt(0)));
+
+    //交换前两个节点
+    // if(flag){
+    //     auto value = (*parent)->ValueAt(0);
+    //     auto key = (*parent)->KeyAt(0);
+    //     //auto tmp = (*parent)->array_[1];
+    //     (*parent)->Remove(0);
+    //     (*parent)->InsertNodeAfter((*parent)->ValueAt(0),key,value);
+    // }
+
+
+    
     
 
 
@@ -415,7 +431,7 @@ bool BPLUSTREE_TYPE::Coalesce(N **neighbor_node, N **node,
     else{
       InternalPage * front_leaf = reinterpret_cast<InternalPage*>(*neighbor_node);
       InternalPage * rear_leaf = reinterpret_cast<InternalPage*>(*node);
-      rear_leaf->MoveAllTo(front_leaf,(*parent)->KeyAt(1),buffer_pool_manager_);
+      rear_leaf->MoveAllTo(front_leaf,(*parent)->KeyAt(index),buffer_pool_manager_);
     }
 
     (*parent)->Remove(index);
@@ -489,7 +505,7 @@ void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {
     Page* page = buffer_pool_manager_->FetchPage(parent_page_id);
     InternalPage* parent_page = reinterpret_cast<InternalPage *>(page->GetData());
 
-    if (index == 0){
+    if (index == 0){//如果node在最左边
       //(node,neighbor_node)
 
       KeyType middle_key = parent_page->KeyAt(1);
@@ -502,7 +518,7 @@ void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {
       //unpin父页并设为脏页
       buffer_pool_manager_->UnpinPage(parent_page_id,true);
     }
-    else{
+    else{//如果node不在最左边
       //(neighbor_node,node)
 
       KeyType middle_key=neighbor_internal->KeyAt(neighbor_internal->GetSize()-1);

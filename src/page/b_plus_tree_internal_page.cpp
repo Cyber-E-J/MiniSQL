@@ -263,7 +263,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyFirstFrom(const MappingType &pair, Buff
   
   for(int i=GetSize();i>=1;i--)  array_[i] = array_[i-1];
   
-  array_[GetSize()] = pair;
+  array_[0] = pair;
   IncreaseSize(1);
 }
 

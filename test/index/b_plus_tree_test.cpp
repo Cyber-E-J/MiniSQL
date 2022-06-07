@@ -14,7 +14,7 @@ TEST(BPlusTreeTests, SampleTest) {
   BPlusTree<int, int, BasicComparator<int>> tree(0, engine.bpm_, comparator, 4, 4);
   TreeFileManagers mgr("tree_");
   // Prepare data
-  const int n = 30;
+  const int n = 1000;
   vector<int> keys;
   vector<int> values;
   vector<int> delete_seq;
@@ -25,9 +25,9 @@ TEST(BPlusTreeTests, SampleTest) {
     delete_seq.push_back(i);
   }
   // Shuffle data
-  // ShuffleArray(keys);
-  // ShuffleArray(values);
-  // ShuffleArray(delete_seq);
+  ShuffleArray(keys);
+  ShuffleArray(values);
+  ShuffleArray(delete_seq);
   // Map key value
   for (int i = 0; i < n; i++) {
     kv_map[keys[i]] = values[i];
@@ -48,12 +48,63 @@ TEST(BPlusTreeTests, SampleTest) {
     ASSERT_EQ(kv_map[i], ans[i]);
   }
   ASSERT_TRUE(tree.Check());
+  
+
+
+
+  /*debug section start*/
+
+  // delete_seq[0] = 20;
+  // delete_seq[1] = 5;
+  // delete_seq[2] = 25;
+  // delete_seq[3] = 13;
+  // delete_seq[4] = 29;
+  // delete_seq[5] = 6;
+  // delete_seq[6] = 22;
+  // delete_seq[7] = 28;
+  // delete_seq[8] = 10;
+  // delete_seq[9] = 18;
+  // delete_seq[10] = 26;
+  // delete_seq[11] = 9;
+  // delete_seq[12] = 23;
+  // delete_seq[13] = 21;
+  // delete_seq[14] = 27; 
+
+  // for (int i = 0; i < 13 ; i++) {
+  //   tree.Remove(delete_seq[i]);
+  // }
+  // tree.PrintTree(mgr[1]);
+
+
+  //  tree.Remove(delete_seq[13]);
+  //  tree.PrintTree(mgr[2]);
+
+  // tree.Remove(delete_seq[13]);
+
+  // for (int i = 14; i < n ; i++) {
+  //   tree.Remove(delete_seq[i]);
+  //   tree.PrintTree(mgr[0]);
+  // }
+  
+  /*debug section end*/
+
+
+
+  // for(int i=0;i<n;i++){
+  //   cout << delete_seq[i]<< " ";
+  // }
+  // cout << endl;
+  //20 5 25 13 29 6 22 28 10 18 26 9 23 21 27 0 1 14 4 16 11 7 15 2 3 24 19 8 12 17 
+
   //Delete half keys
   for (int i = 0; i < n/2 ; i++) {
     tree.Remove(delete_seq[i]);
-    tree.PrintTree(mgr[0]);
+    //tree.PrintTree(mgr[0]);
   }
-  tree.PrintTree(mgr[1]);
+
+  //tree.PrintTree(mgr[1]);
+
+
   // Check valid
   ans.clear();
   for (int i = 0; i < n / 2; i++) {
