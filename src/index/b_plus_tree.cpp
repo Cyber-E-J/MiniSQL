@@ -19,6 +19,7 @@ BPLUSTREE_TYPE::BPlusTree(index_id_t index_id, BufferPoolManager *buffer_pool_ma
   page_id_t root_page_id;
   bool flag = rootpage->GetRootId(index_id,&root_page_id);
   if(flag==true) root_page_id_ = root_page_id;
+  buffer_pool_manager_->UnpinPage(INDEX_ROOTS_PAGE_ID,false);
 }
 
 INDEX_TEMPLATE_ARGUMENTS

@@ -25,9 +25,9 @@ TEST(BPlusTreeTests, SampleTest) {
     delete_seq.push_back(i);
   }
   // Shuffle data
-  //ShuffleArray(keys);
-  //ShuffleArray(values);
-  //ShuffleArray(delete_seq);
+  ShuffleArray(keys);
+  ShuffleArray(values);
+  ShuffleArray(delete_seq);
   // Map key value
   for (int i = 0; i < n; i++) {
     kv_map[keys[i]] = values[i];

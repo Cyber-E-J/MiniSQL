@@ -61,7 +61,7 @@ page_id_t BPlusTreePage::GetParentPageId() const {
 }
 
 void BPlusTreePage::SetParentPageId(page_id_t parent_page_id) {
-  this->parent_page_id_ = parent_page_id_;
+  this->parent_page_id_ = parent_page_id;
 }
 
 /*

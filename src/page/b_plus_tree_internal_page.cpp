@@ -124,11 +124,12 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(const ValueType &old_value, 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *recipient,
                                                 BufferPoolManager *buffer_pool_manager) {
-  int half = GetSize()/2;
+  int size = GetSize();
+  int half = size/2;
 
-  recipient->CopyNFrom(array_+half-int(half/2),int(half/2),buffer_pool_manager);
+  recipient->CopyNFrom(array_+size-half,half,buffer_pool_manager);
 
-  IncreaseSize(-int(half/2));
+  IncreaseSize(-half);
                                                   
 }
 

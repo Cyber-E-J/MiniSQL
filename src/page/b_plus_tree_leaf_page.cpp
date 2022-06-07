@@ -41,8 +41,9 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(const KeyType &key, const KeyComparator &comparator) const {
+  
   int i;
-  for(i=1;i<GetSize();i++){
+  for(i=0;i<GetSize();i++){
     if(comparator(KeyAt(i),key)>=0) return i;
   }
   return i;
@@ -77,14 +78,15 @@ const MappingType &B_PLUS_TREE_LEAF_PAGE_TYPE::GetItem(int index) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &value, const KeyComparator &comparator) {
-  if(GetSize()==0) {
+  if(GetSize()==0) { //如果插入空leaf
     array_[0].first = key;
     array_[0].second = value;
     IncreaseSize(1);
     return GetSize();
   }
-
+  //KeyIndex返回比key大的第一个index
   int index = KeyIndex(key,comparator);
+  //如果key和index重复了，不满足unique key条件
   if(index!=GetSize()&&comparator(key,KeyAt(index))==0) return GetSize();
 
   for(int i=GetSize();i>index;i--){
