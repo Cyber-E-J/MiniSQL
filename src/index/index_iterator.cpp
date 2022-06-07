@@ -15,25 +15,45 @@ INDEX_TEMPLATE_ARGUMENTS INDEXITERATOR_TYPE::IndexIterator(LeafPage* leaf_page ,
 }
 
 INDEX_TEMPLATE_ARGUMENTS INDEXITERATOR_TYPE::~IndexIterator() {
-
+  buffer_pool_manager_->UnpinPage(leaf_page_->GetPageId(),false);
 }
 
 INDEX_TEMPLATE_ARGUMENTS const MappingType &INDEXITERATOR_TYPE::operator*() {
-  ASSERT(false, "Not implemented yet.");
+  return leaf_page_->GetItem(index_in_tree_);
+
+   
 }
 
 INDEX_TEMPLATE_ARGUMENTS INDEXITERATOR_TYPE &INDEXITERATOR_TYPE::operator++() {
-  ASSERT(false, "Not implemented yet.");
+  if(index_in_tree_==leaf_page_->GetSize()-1){ 
+   page_id_t next_page_id = leaf_page_->GetNextPageId();
+
+    if (next_page_id!=INVALID_PAGE_ID){
+      index_in_tree_ = 0;
+      Page* page = buffer_pool_manager_->FetchPage(next_page_id);
+      leaf_page_ = reinterpret_cast<LeafPage *>(page->GetData());
+    }
+    else
+      index_in_tree_++;
+  }
+
+  else index_in_tree_++;
+
+  return *this;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
 bool INDEXITERATOR_TYPE::operator==(const IndexIterator &itr) const {
-  return false;
+  if(leaf_page_->GetPageId()==(itr.leaf_page_)->GetPageId() && index_in_tree_ == itr.index_in_tree_) return true;
+  else return false;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
 bool INDEXITERATOR_TYPE::operator!=(const IndexIterator &itr) const {
-  return false;
+
+  if(leaf_page_->GetPageId()!=(itr.leaf_page_)->GetPageId() || index_in_tree_ != itr.index_in_tree_) return true;
+  else return false;
+
 }
 
 template
