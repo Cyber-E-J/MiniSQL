@@ -24,6 +24,16 @@ public:
   explicit DiskManager(const std::string &db_file);
 
   ~DiskManager() {
+    memcpy(meta_data_, &(Meta_Page_->num_allocated_pages_), sizeof(uint32_t));
+    memcpy(meta_data_ + sizeof(uint32_t), &(Meta_Page_->num_extents_), sizeof(uint32_t));
+    memcpy(meta_data_ + 2 * sizeof(uint32_t), Meta_Page_->extent_used_page_, (PAGE_SIZE - 8) / 4 * sizeof(uint32_t));
+    WritePhysicalPage(META_PAGE_ID, meta_data_);
+    uint32_t SIZE = DiskManager::BITMAP_SIZE;
+    for(uint32_t extent = 0; extent < Meta_Page_->num_extents_; extent++){
+      WritePhysicalPage(extent*( SIZE + 1 ) + 1, (char *)Bitmap_Page_[extent].GetBitmap_Data());
+    //delete Bitmap_Page_[extent];
+    }
+    delete Meta_Page_;
     if (!closed) {
       Close();
     }
@@ -70,6 +80,8 @@ public:
     return meta_data_;
   }
 
+  //bool ReleaseAll();
+
   static constexpr size_t BITMAP_SIZE = BitmapPage<PAGE_SIZE>::GetMaxSupportedSize();
 
 private:
@@ -99,6 +111,7 @@ private:
   std::string file_name_;
   // with multiple buffer pool instances, need to protect file access
   std::recursive_mutex db_io_latch_;
+  //the file is open or closed
   bool closed{false};
   //meta_data
   // uint32_t num_allocated_pages_+
