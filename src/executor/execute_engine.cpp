@@ -1,6 +1,8 @@
 #include "executor/execute_engine.h"
 #include "glog/logging.h"
 #include <vector>
+#include <iomanip>
+#include <algorithm>
 
 ExecuteEngine::ExecuteEngine() {
 
@@ -518,20 +520,316 @@ dberr_t ExecuteEngine::ExecuteDelete(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteDelete" << std::endl;
 #endif
-  return DB_FAILED;
+    if(ast->type_!=kNodeDelete)
+      return DB_FAILED;
+    string tablename=ast->child_->val_;
+    TableInfo* tableinfo;
+    dberr_t gettableres=dbs_[current_db_]->catalog_mgr_->GetTable(tablename,tableinfo);
+    TableHeap* tableheap = tableinfo->GetTableHeap();
+    ASSERT(gettableres==DB_SUCCESS,"get table failed");
+    // condition part
+    pSyntaxNode condition=ast->child_->next_;
+    map<char*,char*> judge;//first atrribute second value
+    vector<char*> isnull;
+    vector<char*> notnull;
+    map<char*,bool> andor;//char* represent attribute,bool==true means and false means or
+    map<char*,uint32_t>comparecol;
+    bool flagcompare=false;
+    Schema* schema=tableinfo->GetSchema();
+    // true if we need to do compare later
+    if(condition&&condition->type_==kNodeConditions)
+    {
+        flagcompare=true;
+        while(condition->child_->child_)
+        {
+
+          condition=condition->child_;
+          // set if the sibling compare condition is "and" or "or"
+          if(condition->type_==kNodeConnector)
+          {
+            if(strcmp("and",condition->val_)==0)
+                andor[condition->child_->next_->child_->val_]=true;
+            else if(strcmp("or",condition->val_)==0)
+                andor[condition->child_->next_->child_->val_]=false;
+            // need to be finish depending on the connector is and or or
+            // first deal with the sibling
+            pSyntaxNode sibling=condition->child_->next_;
+            pSyntaxNode attribute=sibling->child_;
+            if(strcmp("=",sibling->val_)==0){
+                judge[attribute->val_]=attribute->next_->val_;
+            }else if(strcmp("is",sibling->val_)==0){
+                isnull.push_back(attribute->val_);
+            }else if(strcmp("not",sibling->val_)==0){
+                notnull.push_back(attribute->val_);
+            }
+            schema->GetColumnIndex(attribute->val_,comparecol[attribute->val_]);
+            // then recursively deal with the child
+            pSyntaxNode last=condition->child_;
+            pSyntaxNode lastattribute=last->child_;
+            if(last->type_==kNodeCompareOperator){
+                if(strcmp("=",last->val_)==0){
+                    judge[lastattribute->val_]=lastattribute->next_->val_;
+                }else if(strcmp("is",last->val_)==0){
+                    isnull.push_back(lastattribute->val_);
+                }else if(strcmp("not",condition->child_->val_)==0){
+                    notnull.push_back(lastattribute->val_);
+                }
+                schema->GetColumnIndex(condition->child_->val_,comparecol[condition->child_->val_]);
+                break;
+            }
+            }
+          else if(condition->type_==kNodeCompareOperator)
+          {
+              if(strcmp("=",condition->val_)==0){
+                judge[condition->val_]=condition->child_->next_->val_;
+              }else if(strcmp("is",condition->val_)==0){
+                isnull.push_back(condition->child_->next_->val_);
+              }else if(strcmp("not",condition->val_)==0){
+                notnull.push_back(condition->child_->next_->val_);
+              }
+              schema->GetColumnIndex(condition->child_->val_,comparecol[condition->child_->val_]);
+              break;
+          }
+        }
+      // else if(condition->child_->type_==kNodeConnector&&condition->child_->val_=="and"){
+      // do nothing
+      // }
+    }
+    uint32_t cntdelrow=0;
+    vector<RowId> markdel;
+    // print out the top line
+    std::cout<<"+---------------------------------+"<< std::endl;
+    // print out each row
+    for(TableIterator p=tableheap->Begin(nullptr);p!=tableheap->End();++p)
+    {
+        bool flagdelete=true;
+        if(flagcompare)
+        {
+          // deal with and part
+          for(auto i:judge)
+            if(andor[i.first]&&(*p).GetField(comparecol[i.first])->GetData()!=i.second)
+              flagdelete=false;
+          for(auto i:isnull)
+            if(andor[i]&&(*p).GetField(comparecol[i])->IsNull()!=true)
+              flagdelete=false;
+          for(auto i:notnull)
+            if(andor[i]&&(*p).GetField(comparecol[i])->IsNull()!=false)
+              flagdelete=false;
+          //deal with or part
+          for(auto i:judge)
+              if(!andor[i.first]&&(*p).GetField(comparecol[i.first])->GetData()==i.second)
+                  flagdelete=true;
+          for(auto i:isnull)
+              if(!andor[i]&&(*p).GetField(comparecol[i])->IsNull()==true)
+                  flagdelete=true;
+          for(auto i:notnull){
+            if(!andor[i]&&(*p).GetField(comparecol[i])->IsNull()==false){
+              flagdelete=true;
+            }
+          }
+        }
+        if(flagdelete)
+        {
+            tableheap->MarkDelete((*p).GetRowId(),nullptr);
+            markdel.push_back((*p).GetRowId());
+            cntdelrow++;
+        }
+    }
+    // actually apply delete
+    for(auto i:markdel)
+      tableheap->ApplyDelete(i,nullptr);
+    std::cout<<"delete "<<cntdelrow<<" rows"<<endl;
+    std::cout<<"+---------------------------------+"<< std::endl;
+    return DB_SUCCESS;
+    //return DB_FAILED;
 }
 
 dberr_t ExecuteEngine::ExecuteUpdate(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteUpdate" << std::endl;
 #endif
-  return DB_FAILED;
+  std::cout<<"This function doesn't work"<<std::endl;
+  string tablename=ast->child_->val_;
+  TableInfo* tableinfo;
+  dberr_t gettableres=dbs_[current_db_]->catalog_mgr_->GetTable(tablename,tableinfo);
+  TableHeap* tableheap=tableinfo->GetTableHeap();
+  ASSERT(gettableres==DB_SUCCESS,"get table failed");
+  // condition part
+  pSyntaxNode upcontext=ast->child_->next_;
+  map<uint32_t, Field> updatefields;
+  //Field new_field(kTypeInt, 3);
+  Schema* schema=tableinfo->GetSchema();
+  // select row to update
+  // need to be finished later??
+  pSyntaxNode condition=ast->child_->next_->next_;
+  map<char*,char*> judge;//first atrribute second value
+  vector<char*> isnull;
+  vector<char*> notnull;
+  map<char*,bool> andor;//char* represent attribute,bool==true means and false means or
+  bool flagcompare=false;
+  vector<uint32_t>upcol;
+  map<char*,uint32_t>comparecol;
+  // true if we need to do compare later
+  if(condition&&condition->type_==kNodeConditions){
+    flagcompare=true;
+    while(condition->child_->child_){
+      condition=condition->child_;
+      // set if the sibling compare condition is "and" or "or"
+      if(condition->type_==kNodeConnector){
+        if(strcmp("and",condition->val_)==0){
+          andor[condition->child_->next_->child_->val_]=true;
+        }else if(strcmp("or",condition->val_)==0){
+          andor[condition->child_->next_->child_->val_]=false;
+        }
+        // need to be finish depending on the connector is and or or
+        // first deal with the sibling
+        pSyntaxNode sibling=condition->child_->next_;
+        pSyntaxNode attribute=sibling->child_;
+        if(strcmp("=",sibling->val_)==0){
+          judge[attribute->val_]=attribute->next_->val_;
+        }else if(strcmp("is",sibling->val_)==0){
+          isnull.push_back(attribute->val_);
+        }else if(strcmp("not",sibling->val_)==0){
+          notnull.push_back(attribute->val_);
+        }
+        schema->GetColumnIndex(attribute->val_,comparecol[attribute->val_]);
+        // find out the index of all the columns we are going to compare
+        // then recursively deal with the child
+        pSyntaxNode last=condition->child_;
+        pSyntaxNode lastattribute=last->child_;
+        if(last->type_==kNodeCompareOperator){
+          if(strcmp("=",last->val_)==0){
+            judge[lastattribute->val_]=lastattribute->next_->val_;
+          }else if(strcmp("is",last->val_)==0){
+            isnull.push_back(lastattribute->val_);
+          }else if(strcmp("not",condition->child_->val_)==0){
+            notnull.push_back(lastattribute->val_);
+          }
+          schema->GetColumnIndex(lastattribute->val_,comparecol[lastattribute->val_]);
+          // find out the index of all the columns we are going to compare
+          break;
+        }
+      }else if(condition->type_==kNodeCompareOperator){
+        if(strcmp("=",condition->val_)==0){
+          judge[condition->child_->val_]=condition->child_->next_->val_;
+        }else if(strcmp("is",condition->val_)==0){
+          isnull.push_back(condition->child_->next_->val_);
+        }else if(strcmp("not",condition->val_)==0){
+          notnull.push_back(condition->child_->next_->val_);
+        }
+        schema->GetColumnIndex(condition->child_->val_,comparecol[condition->child_->val_]);
+        // find out the index of all the columns we are going to compare
+        break;
+      }
+    }
+    // else if(condition->child_->type_==kNodeConnector&&condition->child_->val_=="and"){
+    // do nothing
+    // }
+  }
+  /*map<int, Field> ap;
+  Field new_field(kTypeInt, 6);
+  ap[6] = new_field;*/
+  for(pSyntaxNode p=upcontext->child_;p!=nullptr;p=p->next_){
+    char* attribute=p->child_->val_;
+    pSyntaxNode value=p->child_->next_;
+    if(value->type_==kNodeNumber){
+      if(string(value->val_).find('.')!=string::npos){
+        float f = atof(value->val_);
+        Field tmpfield(kTypeFloat,f);
+        uint32_t fieldcol;
+        schema->GetColumnIndex(string(attribute),fieldcol);
+        upcol.push_back(fieldcol);
+        // updatefields[fieldcol] = tmpfield;
+      }else{
+        Field tmpfield(kTypeInt,atoi(value->val_));
+        uint32_t fieldcol;
+        schema->GetColumnIndex(string(attribute),fieldcol);
+        upcol.push_back(fieldcol);
+        //  updatefields[fieldcol] = tmpfield;
+      }
+    }else if(value->type_==kNodeString){
+      Field tmpfield(kTypeChar,value->val_,string(value->val_).size(),true);
+      uint32_t fieldcol;
+      schema->GetColumnIndex(string(attribute),fieldcol);
+      upcol.push_back(fieldcol);
+      //updatefields[fieldcol]=tmpfield;
+    }else if(p->type_==kNodeNull){
+      uint32_t colidx;
+      schema->GetColumnIndex(string(attribute),colidx);
+      const Column* tmpcol=schema->GetColumn(colidx);
+      TypeId fieldtype=tmpcol->GetType();
+      Field tmpfield(fieldtype);
+      uint32_t fieldcol;
+      schema->GetColumnIndex(string(attribute),fieldcol);
+      upcol.push_back(fieldcol);
+      //updatefields[fieldcol]=tmpfield;
+    }
+  }
+  uint32_t cntupdate=0;
+  for(TableIterator p=tableheap->Begin(nullptr);p!=tableheap->End();++p){
+    bool flagupdate=true;
+    if(flagcompare){
+      // deal with and part
+      for(auto i:judge){
+        if(andor[i.first]&&(*p).GetField(comparecol[i.first])->GetData()!=i.second){
+          flagupdate=false;
+        }
+      }
+      for(auto i:isnull){
+        if(andor[i]&&(*p).GetField(comparecol[i])->IsNull()!=true){
+          flagupdate=false;
+        }
+      }
+      for(auto i:notnull){
+        if(andor[i]&&(*p).GetField(comparecol[i])->IsNull()!=false){
+          flagupdate=false;
+        }
+      }
+      //deal with or part
+      for(auto i:judge){
+        if(!andor[i.first]&&(*p).GetField(comparecol[i.first])->GetData()==i.second){
+          flagupdate=true;
+        }
+      }
+      for(auto i:isnull){
+        if(!andor[i]&&(*p).GetField(comparecol[i])->IsNull()==true){
+          flagupdate=true;
+        }
+      }
+      for(auto i:notnull){
+        if(!andor[i]&&(*p).GetField(comparecol[i])->IsNull()==false){
+          flagupdate=true;
+        }
+      }
+    }
+    if(flagupdate){
+      cntupdate++;
+      vector<Field> newfields;
+      for(uint32_t i=0;i<(*p).GetFieldCount();i++){
+        if(find(upcol.begin(),upcol.end(),i)!=upcol.end()){
+          //  newfields.push_back(updatefields[i]);
+        }else{
+          newfields.push_back(*((*p).GetField(i)));
+          // this field is the original field
+          // we don't need update
+        }
+      }
+      Row newrow(newfields);
+      RowId newrowid=(*p).GetRowId();
+      tableheap->UpdateTuple(newrow,newrowid,nullptr);
+    }
+  }
+  LOG(INFO)<<"update "<<cntupdate<<" rows"<<endl;
+  LOG(INFO)<<"+---------------------------------+"<< std::endl;
+  return DB_SUCCESS;
+  //return DB_FAILED;
 }
 
 dberr_t ExecuteEngine::ExecuteTrxBegin(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteTrxBegin" << std::endl;
 #endif
+
   return DB_FAILED;
 }
 
@@ -553,6 +851,7 @@ dberr_t ExecuteEngine::ExecuteExecfile(pSyntaxNode ast, ExecuteContext *context)
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteExecfile" << std::endl;
 #endif
+
   return DB_FAILED;
 }
 
