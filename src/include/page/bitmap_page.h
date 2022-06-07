@@ -56,7 +56,7 @@ private:
   /** The space occupied by all members of the class should be equal to the PageSize */
   [[maybe_unused]] uint32_t page_allocated_=0;//add:=0
   [[maybe_unused]] uint32_t next_free_page_=0;//add:=0
-  [[maybe_unused]] unsigned char bytes[MAX_CHARS];
+  [[maybe_unused]] unsigned char bytes[MAX_CHARS]={0};//add:=0
 };
 
 #endif //MINISQL_BITMAP_PAGE_H
