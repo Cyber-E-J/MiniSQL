@@ -1,13 +1,17 @@
 #ifndef MINISQL_EXECUTE_ENGINE_H
 #define MINISQL_EXECUTE_ENGINE_H
 
+#include <string>
 #include <unordered_map>
 #include "common/dberr.h"
 #include "common/instance.h"
 #include "transaction/transaction.h"
-#include <string>
+#include "parser/syntax_tree.h"
 
 extern "C" {
+int yyparse(void);
+FILE *yyyin;
+#include "parser/minisql_lex.h"
 #include "parser/parser.h"
 };
 
