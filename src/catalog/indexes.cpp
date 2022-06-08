@@ -76,11 +76,10 @@ uint32_t IndexMetadata::DeserializeFrom(char *buf, IndexMetadata *&index_meta, M
   uint32_t index_name_len = MACH_READ_FROM(uint32_t, buf + len);
   len += sizeof(uint32_t);
   //read the index name
-  char index_name_buf[index_name_len + 1];
+  char index_name_buf[index_name_len+1];
   memcpy(index_name_buf, buf + len, index_name_len);
-  
   index_name_buf[index_name_len] = '\0';
-  len += sizeof(index_name_len);
+  len += index_name_len;
   std::string index_name(index_name_buf, index_name_len);
   //read the corresponding table id
   table_id_t table_id = MACH_READ_FROM(table_id_t, buf + len);
@@ -90,9 +89,9 @@ uint32_t IndexMetadata::DeserializeFrom(char *buf, IndexMetadata *&index_meta, M
   len += sizeof(uint32_t);
   std::vector<uint32_t> key_map;
   for (uint32_t i = 0; i < key_map_len; i++) {
-    uint32_t key_map_i = MACH_READ_UINT32(buf + len);
+    uint32_t key_map_i = MACH_READ_FROM(uint32_t, buf + len);
     len += sizeof(uint32_t);
-    key_map.push_back(key_map_i);
+    key_map.emplace_back(key_map_i);
   }
   index_meta = ALLOC_P(heap, IndexMetadata)(index_id, index_name, table_id, key_map);
   return len; 
