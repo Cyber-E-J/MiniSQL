@@ -1,8 +1,9 @@
 #include "storage/table_heap.h"
 #include "glog/logging.h"
+
 bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
   page_id_t last_page_id = INVALID_PAGE_ID;
-  auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(0));
+ // auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(0));
   if (first_page_id_ != INVALID_PAGE_ID) {  //如果第一页合法
     //插入第一页
     auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
@@ -27,7 +28,7 @@ bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
     if (is_insert) return true;
   }
 //均不合法就创建新页
-  page_id_t new_page_id;
+  page_id_t new_page_id=INVALID_PAGE_ID;
   auto new_page = static_cast<TablePage *>(buffer_pool_manager_->NewPage(new_page_id));
   ASSERT(new_page != nullptr,"Can't create new page!");
   new_page->Init(new_page_id,last_page_id,log_manager_,txn);
@@ -35,7 +36,11 @@ bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
   bool is_insert=new_page->InsertTuple(row, schema_, txn, lock_manager_, log_manager_);
   new_page->WUnlatch();
   buffer_pool_manager_->UnpinPage(new_page->GetTablePageId(), is_insert);
-  if(first_page_id_!=INVALID_PAGE_ID)page->SetNextPageId(new_page->GetPageId());//连接新页
+  if(first_page_id_!=INVALID_PAGE_ID){
+    auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(last_page_id));
+    page->SetNextPageId(new_page->GetPageId());//连接新页
+    cout << page->GetNextPageId()<<endl;
+  }
   else
     first_page_id_ = new_page_id;
   return is_insert;
@@ -60,16 +65,36 @@ bool TableHeap::MarkDelete(const RowId &rid, Transaction *txn) {
 bool TableHeap::UpdateTuple(Row &row, const RowId &rid, Transaction *txn) {
   auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(rid.GetPageId()));
    ASSERT(page != nullptr,"Not found UpdateTuple page!");
+  if (rid.GetPageId() == INVALID_PAGE_ID) return false;
   Row old_row(rid);
-  bool find_old_row= GetTuple(&old_row, txn);
+  bool find_old_row=page->GetTuple(&old_row, schema_,txn,lock_manager_);
   if (!find_old_row) return false;
   page->WLatch();
+  
   //接口修改为int 返回值区分错误类型 0代表slotnum不合法，1代表这个元组已被删除，2代表没有足够的空间去update 3代表成功更新
-  bool is_update = page->UpdateTuple(row, &old_row, schema_, txn, lock_manager_, log_manager_); 
-  page->WUnlatch();
-  buffer_pool_manager_->UnpinPage(page->GetTablePageId(), is_update);
-  return is_update;
+  int is_update = page->UpdateTuple(row, &old_row, schema_, txn, lock_manager_, log_manager_);
+  if(is_update==2||is_update==0){
+    page->WUnlatch();
+    buffer_pool_manager_->UnpinPage(page->GetTablePageId(), false);
+    return false;
+  }
+  else if(is_update==1){
+    row.SetRowId(rid);
+    this->MarkDelete(rid, txn);
+    this->ApplyDelete(rid, txn);
+    bool is_insert=this->InsertTuple(row, txn);
+    page->WUnlatch();
+    buffer_pool_manager_->UnpinPage(page->GetTablePageId(), true);
+    return is_insert;
+  }
+  else{
+    page->WUnlatch();
+    buffer_pool_manager_->UnpinPage(page->GetTablePageId(), is_update);
+    return true;
+  }
+  
 }
+
 
 void TableHeap::ApplyDelete(const RowId &rid, Transaction *txn) {
   // Step1: Find the page which contains the tuple.
@@ -98,8 +123,6 @@ void TableHeap::FreeHeap() {
   page_id_t next_page_id;
   TablePage * page;
   while(current_page_id!=INVALID_PAGE_ID){
-    //先fetch,unpin 再delete
-   // next_page_id=
     page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(current_page_id));
     next_page_id=page->GetNextPageId();
     buffer_pool_manager_->UnpinPage(current_page_id,false);
@@ -116,6 +139,7 @@ bool TableHeap::GetTuple(Row *row, Transaction *txn) {
   ASSERT(page != nullptr,"Not found gettuple page!");
   page->RLatch();
   bool get_status=page->GetTuple(row, schema_, txn, lock_manager_);
+ // row->SetRowId(rid);
   page->RUnlatch();
   buffer_pool_manager_->UnpinPage(page->GetTablePageId(), false);
   return get_status;
