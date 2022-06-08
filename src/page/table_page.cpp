@@ -60,8 +60,8 @@ bool TablePage::MarkDelete(const RowId &rid, Transaction *txn, LockManager *lock
   }
   return true;
 }
-
-bool TablePage::UpdateTuple(const Row &new_row, Row *old_row, Schema *schema,
+ //接口修改为int 返回值区分错误类型 0代表slotnum不合法，1代表这个元组已被删除，2代表没有足够的空间去update 3代表成功更新
+int TablePage::UpdateTuple(const Row &new_row, Row *old_row, Schema *schema,
                             Transaction *txn, LockManager *lock_manager, LogManager *log_manager) {
   ASSERT(old_row != nullptr && old_row->GetRowId().Get() != INVALID_ROWID.Get(), "invalid old row.");
   uint32_t serialized_size = new_row.GetSerializedSize(schema);
@@ -69,16 +69,16 @@ bool TablePage::UpdateTuple(const Row &new_row, Row *old_row, Schema *schema,
   uint32_t slot_num = old_row->GetRowId().GetSlotNum();
   // If the slot number is invalid, abort.
   if (slot_num >= GetTupleCount()) {
-    return false;
+    return 0;
   }
   uint32_t tuple_size = GetTupleSize(slot_num);
   // If the tuple is deleted, abort.
   if (IsDeleted(tuple_size)) {
-    return false;
+    return 1;
   }
   // If there is not enough space to update, we need to update via delete followed by an insert (not enough space).
   if (GetFreeSpaceRemaining() + tuple_size < serialized_size) {
-    return false;
+    return 2;
   }
   // Copy out the old value.
   uint32_t tuple_offset = GetTupleOffsetAtSlot(slot_num);
@@ -99,7 +99,7 @@ bool TablePage::UpdateTuple(const Row &new_row, Row *old_row, Schema *schema,
       SetTupleOffsetAtSlot(i, tuple_offset_i + tuple_size - new_row.GetSerializedSize(schema));
     }
   }
-  return true;
+  return 3;
 }
 
 void TablePage::ApplyDelete(const RowId &rid, Transaction *txn, LogManager *log_manager) {
