@@ -69,36 +69,50 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
 }
 
 Page *BufferPoolManager::NewPage(page_id_t &page_id) {
-  page_id = 0;
-  frame_id_t tmp;
-  if(free_list_.size()>0){
-    page_id = AllocatePage();
-    tmp = free_list_.front();
+  latch_.lock();
+  // 1.   If all the pages in the buffer pool are pinned, return nullptr.
+  if(CheckAllPinned()){
+    LOG(INFO)<<"All pinned"<<std::endl;
+    latch_.unlock();
+    return nullptr;
+  }
+  page_id_t n_page_id = AllocatePage();
+  if(n_page_id == INVALID_PAGE_ID){
+    LOG(INFO)<<"AllocatePage failed"<<std::endl;
+    latch_.unlock();
+    return nullptr;
+  }
+  //debug
+  //LOG(INFO)<<"page_id: "<<n_page_id<<endl;
+  // 2.   Pick a victim page P from either the free list or the replacer.
+  // Always pick from the free list first.
+  frame_id_t frame_id;
+  if(!free_list_.empty()){//find a replacement page (P) from the free list
+    frame_id = free_list_.front();
     free_list_.pop_front();
-    // page_table_[page_id] = tmp;
-    // replacer_->Pin(tmp);
-    // return &pages_[tmp];
+  }
+  else if(replacer_->Victim(&frame_id)){//find a replacement page (P) from the replacer
+    if(pages_[frame_id].IsDirty()) FlushPage(pages_[frame_id].GetPageId());
+    // 3.   Update P's metadata, zero out memory and add P to the page table.
   }
   else{
-    bool flag = replacer_->Victim(&tmp);
-    if(flag==false) return nullptr;
-    page_id = AllocatePage();
-    if(pages_[tmp].IsDirty()){
-      disk_manager_->WritePage(pages_[tmp].GetPageId(),pages_[tmp].GetData());
-    }
-    page_table_.erase(pages_[tmp].page_id_);
+    DeallocatePage(n_page_id);
+    latch_.unlock();
+    return nullptr;
   }
-  pages_[tmp].ResetMemory();
-  pages_[tmp].page_id_ = page_id;
-  pages_[tmp].pin_count_ = 1;
-  page_table_[page_id] = tmp;
-  return &pages_[tmp];
-  // 0.   Make sure you call AllocatePage!
-  // 1.   If all the pages in the buffer pool are pinned, return nullptr.
-  // 2.   Pick a victim page P from either the free list or the replacer. Always pick from the free list first.
-  // 3.   Update P's metadata, zero out memory and add P to the page table.
+  page_table_.erase(pages_[frame_id].GetPageId());
+  page_table_.emplace(n_page_id, frame_id);
+  Page *page = &pages_[frame_id];
+  page->ResetMemory();
+  page->is_dirty_ = false;
+  page->pin_count_ = 1;
+  page->page_id_ = n_page_id;
+  replacer_->Pin(frame_id);
+  //FlushPage(n_page_id);
   // 4.   Set the page ID output parameter. Return a pointer to P.
-  return nullptr;
+  page_id = n_page_id;
+  latch_.unlock();
+  return page;
 }
 
 bool BufferPoolManager::DeletePage(page_id_t page_id) {
