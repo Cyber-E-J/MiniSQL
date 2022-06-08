@@ -12,10 +12,8 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 }
 
 BufferPoolManager::~BufferPoolManager() {
-  for (auto page: page_table_) {
-    FlushPage(page.first);
-  }
-  delete[] pages_;
+  FlushAllPage();
+  delete[] pages_;//maybe unused?
   delete replacer_;
 }
 
@@ -48,6 +46,7 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
       //latch?
     }
     else{
+      LOG(INFO)<<"Cna't find a replacement page"<<std::endl;
       latch_.unlock();
       return nullptr;
     }
@@ -70,46 +69,36 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
 }
 
 Page *BufferPoolManager::NewPage(page_id_t &page_id) {
-  latch_.lock();
-  // 1.   If all the pages in the buffer pool are pinned, return nullptr.
-  if(CheckAllPinned()){
-    latch_.unlock();
-    return nullptr;
-  }
-  // 0.   Make sure you call AllocatePage!
-  page_id_t n_page_id = AllocatePage();
-  //debug
-  //LOG(INFO)<<"page_id: "<<n_page_id<<endl;
-  // 2.   Pick a victim page P from either the free list or the replacer.
-  // Always pick from the free list first.
-  frame_id_t frame_id;
-  if(!free_list_.empty()){//find a replacement page (P) from the free list
-    frame_id = free_list_.front();
+  page_id = 0;
+  frame_id_t tmp;
+  if(free_list_.size()>0){
+    page_id = AllocatePage();
+    tmp = free_list_.front();
     free_list_.pop_front();
-  }
-  else if(replacer_->Victim(&frame_id)){//find a replacement page (P) from the replacer
-    if(pages_[frame_id].IsDirty()) FlushPage(pages_[frame_id].GetPageId());
-    // 3.   Update P's metadata, zero out memory and add P to the page table.
+    // page_table_[page_id] = tmp;
+    // replacer_->Pin(tmp);
+    // return &pages_[tmp];
   }
   else{
-    DeallocatePage(n_page_id);
-    latch_.unlock();
-    return nullptr;
+    bool flag = replacer_->Victim(&tmp);
+    if(flag==false) return nullptr;
+    page_id = AllocatePage();
+    if(pages_[tmp].IsDirty()){
+      disk_manager_->WritePage(pages_[tmp].GetPageId(),pages_[tmp].GetData());
+    }
+    page_table_.erase(pages_[tmp].page_id_);
   }
-  page_table_.erase(pages_[frame_id].GetPageId());
-  page_table_.emplace(n_page_id, frame_id);
-  Page *page = &pages_[frame_id];
-  page->ResetMemory();
-  page->is_dirty_ = false;
-  page->pin_count_ = 1;
-  page->page_id_ = n_page_id;
-  replacer_->Pin(frame_id);
-
-  //FlushPage(n_page_id);
+  pages_[tmp].ResetMemory();
+  pages_[tmp].page_id_ = page_id;
+  pages_[tmp].pin_count_ = 1;
+  page_table_[page_id] = tmp;
+  return &pages_[tmp];
+  // 0.   Make sure you call AllocatePage!
+  // 1.   If all the pages in the buffer pool are pinned, return nullptr.
+  // 2.   Pick a victim page P from either the free list or the replacer. Always pick from the free list first.
+  // 3.   Update P's metadata, zero out memory and add P to the page table.
   // 4.   Set the page ID output parameter. Return a pointer to P.
-  page_id = n_page_id;
-  latch_.unlock();
-  return page;
+  return nullptr;
 }
 
 bool BufferPoolManager::DeletePage(page_id_t page_id) {
@@ -207,6 +196,7 @@ void BufferPoolManager::DeallocatePage(page_id_t page_id) {
 bool BufferPoolManager::IsPageFree(page_id_t page_id) {
   return disk_manager_->IsPageFree(page_id);
 }
+
 
 // Only used for debug
 bool BufferPoolManager::CheckAllPinned() {
