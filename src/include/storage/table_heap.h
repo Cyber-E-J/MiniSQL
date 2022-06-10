@@ -103,6 +103,7 @@ private:
           log_manager_(log_manager),
           lock_manager_(lock_manager) {
     first_page_id_ = INVALID_PAGE_ID;
+    cur_pid_ = INVALID_PAGE_ID;
     // ASSERT(false, "Not implemented yet.");
   };
 
@@ -120,6 +121,7 @@ private:
 private:
   BufferPoolManager *buffer_pool_manager_;
   page_id_t first_page_id_;
+  page_id_t cur_pid_;
   Schema *schema_;
   [[maybe_unused]] LogManager *log_manager_;
   [[maybe_unused]] LockManager *lock_manager_;
