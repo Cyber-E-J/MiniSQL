@@ -3,17 +3,17 @@
 
 bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
   page_id_t last_page_id = INVALID_PAGE_ID;
- // auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(0));
-  if (first_page_id_ != INVALID_PAGE_ID) {  //如果第一页合法
-    //插入第一页
-    auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
+ // firstfit改为nextfit
+  if (cur_pid_ != INVALID_PAGE_ID) {  //如果本页合法
+    //插入本页
+    auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(cur_pid_));
     ASSERT(page != nullptr,"Not found InsertTuple first page!");
     page->WLatch();
     bool is_insert=page->InsertTuple(row, schema_, txn, lock_manager_, log_manager_);
     page->WUnlatch();
     buffer_pool_manager_->UnpinPage(page->GetTablePageId(), is_insert);
     if (is_insert) return true;//如果插入成功就返回
-    while (!is_insert) {//插入不成功就一直寻找下一页直至成功或下一页不合法
+    /*while (!is_insert) {//插入不成功就一直寻找下一页直至成功或下一页不合法
       last_page_id = page->GetPageId();
       if (page->GetNextPageId() == INVALID_PAGE_ID) {
         break;
@@ -25,9 +25,9 @@ bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
       buffer_pool_manager_->UnpinPage(next_page->GetTablePageId(), is_insert);
       page = next_page;
     }
-    if (is_insert) return true;
+    if (is_insert) return true;*/
   }
-//均不合法就创建新页
+//本页不合法就创建新页
   page_id_t new_page_id=INVALID_PAGE_ID;
   auto new_page = static_cast<TablePage *>(buffer_pool_manager_->NewPage(new_page_id));
   ASSERT(new_page != nullptr,"Can't create new page!");
@@ -36,15 +36,14 @@ bool TableHeap::InsertTuple(Row &row, Transaction *txn) {
   bool is_insert=new_page->InsertTuple(row, schema_, txn, lock_manager_, log_manager_);
   new_page->WUnlatch();
   buffer_pool_manager_->UnpinPage(new_page->GetTablePageId(), is_insert);
-  if(first_page_id_!=INVALID_PAGE_ID){
-    auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(last_page_id));
+  if(cur_pid_!=INVALID_PAGE_ID){
+    auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(cur_pid_));
     page->SetNextPageId(new_page->GetPageId());//连接新页
-    cout << page->GetNextPageId()<<endl;
-  }
-  else
-    first_page_id_ = new_page_id;
+    cur_pid_ = new_page->GetPageId();//修改curpid
+  } else{
+    cur_pid_=first_page_id_ = new_page->GetPageId();
+  } 
   return is_insert;
-
 }
 
 bool TableHeap::MarkDelete(const RowId &rid, Transaction *txn) {
@@ -129,8 +128,8 @@ void TableHeap::FreeHeap() {
     buffer_pool_manager_->DeletePage(current_page_id);
     current_page_id=next_page_id;
   }
-  
-  first_page_id_=INVALID_PAGE_ID; //这一句话需要吗？
+  cur_pid_ = INVALID_PAGE_ID;
+  first_page_id_ = INVALID_PAGE_ID;  //
 }
 
 bool TableHeap::GetTuple(Row *row, Transaction *txn) {
