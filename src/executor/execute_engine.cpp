@@ -12,7 +12,7 @@
 
 ExecuteEngine::ExecuteEngine() {
   //freopen("dbs.txt", "r", stdin);
-  /*FILE * fq;
+  FILE * fq;
   fq = fopen("dbs.txt", "r");
   int cnt;
   fscanf(fq, "%d", &cnt);
@@ -20,9 +20,9 @@ ExecuteEngine::ExecuteEngine() {
   {
     char tmp[1005];
     fscanf(fq, "%s", tmp);
-    DBStorageEngine * dbhead = new DBStorageEngine(tmp);
+    DBStorageEngine * dbhead = new DBStorageEngine(tmp,false);
     dbs_[tmp] = dbhead;
-  }*/
+  }
 }
 
 dberr_t ExecuteEngine::Execute(pSyntaxNode ast, ExecuteContext *context) {
@@ -1331,7 +1331,7 @@ dberr_t ExecuteEngine::ExecuteExecfile(pSyntaxNode ast, ExecuteContext *context)
 #endif
   string name = ast->child_->val_;
   // the path of account_data
-  string file_name = "/mnt/z/minisql-newdev/data/"+name;
+  string file_name = "/mnt/e/minisql-newdev/data/"+name;
 
   ifstream infile;
   infile.open(file_name.data());
