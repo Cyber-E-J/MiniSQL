@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
     engine.Execute(MinisqlGetParserRootNode(), &context);
 
     end = clock();
-    std::cout<<"This SQL statement takes"<<double (end - start)/1000<<"s "<<std::endl;
+    std::cout<<"This SQL statement takes "<<double (end - start)/CLOCKS_PER_SEC<<"s "<<std::endl;
     sleep(1);
 
 
@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
 
     // quit condition
     if (context.flag_quit_) {
-      printf("bye!\n");
+      printf("bye~ see u next time!\n");
       break;
     }
 
