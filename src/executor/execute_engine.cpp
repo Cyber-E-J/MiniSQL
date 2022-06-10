@@ -6,11 +6,23 @@
 #include "utils/tree_file_mgr.h"
 #include <vector>
 #include <iomanip>
+#include <cstring>
 #include <time.h>
 #include <algorithm>
 
 ExecuteEngine::ExecuteEngine() {
-
+  //freopen("dbs.txt", "r", stdin);
+  FILE * fq;
+  fq = fopen("dbs.txt", "r");
+  int cnt;
+  fscanf(fq, "%d", &cnt);
+  for(int i=0; i<cnt; ++i)
+  {
+    char tmp[1005];
+    fscanf(fq, "%s", tmp);
+    DBStorageEngine * dbhead = new DBStorageEngine(tmp);
+    dbs_[tmp] = dbhead;
+  }
 }
 
 dberr_t ExecuteEngine::Execute(pSyntaxNode ast, ExecuteContext *context) {
@@ -75,7 +87,8 @@ dberr_t ExecuteEngine::ExecuteCreateDatabase(pSyntaxNode ast, ExecuteContext *co
   }
   DBStorageEngine * dbhead = new DBStorageEngine(value);
   dbs_[value] = dbhead;
-  puts("hahaah! Successfully create dbs\n");
+ // puts("Successfully create database ");
+  std::cout<<"Successfully create database "<<value<<std::endl;
   //return DB_FAILED;
   return DB_SUCCESS;
 }
@@ -87,7 +100,7 @@ dberr_t ExecuteEngine::ExecuteDropDatabase(pSyntaxNode ast, ExecuteContext *cont
   std::string value = ast->child_->val_;
   delete dbs_[value];
   dbs_.erase(value);
-  puts("Successfully delete dbs\n");
+  puts("Successfully delete database\n");
   //return DB_FAILED;
   return DB_SUCCESS;
 }
@@ -112,6 +125,7 @@ dberr_t ExecuteEngine::ExecuteUseDatabase(pSyntaxNode ast, ExecuteContext *conte
       puts("Invalid Input\n");
   else current_db_ = value, cur_db = dbs_[value];
   //return DB_FAILED;
+  std::cout<<"Now using databse "<<value<<std::endl;
   return DB_SUCCESS;
 }
 
@@ -195,11 +209,22 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
 
       CatalogManager * cur_cata = cur_db->catalog_mgr_;
       IndexInfo * index_info = nullptr;
-      string name_index = table_name + "_pk";
+      string name_index = table_name + "_index";
       std::cout<<"index name : "<<name_index<<std::endl;
       cur_cata->CreateIndex(table_name, name_index, primary_key, nullptr, index_info);
   }
   //return DB_SUCCESS;
+  /*for(auto iter = vec_column.begin(); iter < vec_column.end(); ++iter)
+  {
+      if((*iter)->IsUnique())
+      {
+          string unique_index = table_name + "_" + (*iter)->GetName() + " unique";
+          CatalogManager * cur_catalog = cur_db->catalog_mgr_;
+          vector <string> unique_attribute = {(*iter)->GetName()};
+          IndexInfo * indexInfo = nullptr;
+          cur_catalog->CreateIndex(table_name, unique_index, unique_attribute, nullptr, indexInfo);
+      }
+  }*/
   return is_Exist;
 }
 
@@ -237,14 +262,54 @@ dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *conte
   LOG(INFO) << "ExecuteCreateIndex" << std::endl;
 #endif
   vector<string> key_indexes;
-  pSyntaxNode  key_index = ast->child_->next_->next_->child_;
-  for(; key_index != nullptr; key_index = key_index->next_)
-      key_indexes.push_back(key_index->val_);
+  string table_name = ast->child_->next_->val_;
   CatalogManager * cur_ca = cur_db->catalog_mgr_;
   IndexInfo * indexInfo = nullptr;
+  TableInfo * tableInfo = nullptr;
+  cur_ca->GetTable(table_name, tableInfo);
+  pSyntaxNode  key_name = ast->child_->next_->next_->child_;
+  for(; key_name != nullptr; key_name = key_name->next_)
+  {
+      uint32_t  key_index;
+      dberr_t isIn = tableInfo->GetSchema()->GetColumnIndex(key_name->val_, key_index);
+      if(isIn == DB_COLUMN_NAME_NOT_EXIST)
+      {
+          std::cout<<"The attribute isn't in this table"<<std::endl;
+          return DB_FAILED;
+      }
+      const Column * px = tableInfo->GetSchema()->GetColumn(key_index);
+      if(px->IsUnique() == 0)
+      {
+          std::cout<<"Non-unique key"<<std::endl;
+          return DB_FAILED;
+      }
+  }
+  pSyntaxNode key_index = ast->child_->next_->next_->child_;
+  for(; key_index != nullptr; key_index = key_index->next_) key_indexes.push_back(key_index->val_);
+
   dberr_t isExist = cur_ca->CreateIndex(ast->child_->next_->val_, ast->child_->val_, key_indexes, nullptr, indexInfo);
   if(isExist == DB_TABLE_NOT_EXIST) std::cout<<"This table not exist"<<std::endl;
   if(isExist == DB_INDEX_ALREADY_EXIST) std::cout<<"This index already exist"<<std::endl;
+
+  TableHeap * tableHeap = tableInfo->GetTableHeap();
+  vector<uint32_t> col_index;
+  for(auto iter = key_indexes.begin(); iter != key_indexes.end(); ++iter)
+  {
+      uint32_t index;
+      tableInfo->GetSchema()->GetColumnIndex(*iter, index);
+      col_index.push_back(index);
+  }
+  vector<Field> fields;
+  for(auto iter = tableHeap->Begin(nullptr); iter != tableHeap->End(); iter++)
+  {
+     // Row &it_row = *iter;
+      const Row &nrow = *iter;
+      vector<Field> index_field;
+      for(auto iter2 = col_index.begin(); iter2 != col_index.end(); ++iter2)
+          index_field.push_back(*(nrow.GetField(*iter2)));
+      Row row_index(index_field);
+      indexInfo->GetIndex()->InsertEntry(row_index, nrow.GetRowId(), nullptr);
+  }
   return isExist;
   //return DB_FAILED;
 }
@@ -824,22 +889,24 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
     std::cout<<"+---------------------------------+"<< std::endl;
     return DB_SUCCESS;
     //return DB_FAILED;*/
-    pSyntaxNode range = ast->child_;
+  pSyntaxNode range = ast->child_;
   vector<uint32_t> columns;
   string table_name=range->next_->val_;
   TableInfo *tableinfo = nullptr;
   dberr_t GetRet = cur_db->catalog_mgr_->GetTable(table_name, tableinfo);
-  if (GetRet==DB_TABLE_NOT_EXIST){
+  if (GetRet==DB_TABLE_NOT_EXIST)
+  {
     cout<<"Table Not Exist!"<<endl;
     return DB_FAILED;
   }
-  if(range->type_ == kNodeAllColumns){
+  if(range->type_ == kNodeAllColumns)
+  {
     // cout<<"select all"<<endl;
     for(uint32_t i=0;i<tableinfo->GetSchema()->GetColumnCount();i++)
       columns.push_back(i);
   }
   else if(range->type_ == kNodeColumnList){
-    // vector<Column*> all_columns = tableinfo->GetSchema()->GetColumns();
+
     pSyntaxNode col = range->child_;
     while(col!=nullptr){
       uint32_t pos;
@@ -860,7 +927,7 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
   }
   cout<<endl;
   cout<<"--------------------"<<endl;
-  if(range->next_->next_==nullptr)//没锟斤拷选锟斤拷锟斤拷锟斤拷
+  if(range->next_->next_==nullptr)
   {
     int cnt=0;
     for(auto it=tableinfo->GetTableHeap()->Begin(nullptr);it!=tableinfo->GetTableHeap()->End();it++){
@@ -876,10 +943,11 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
       cout<<endl;
       cnt++;
     }
-    cout<<"Select Success, Affects "<<cnt<<" Record!"<<endl;
+    cout<<"Select successfully, in total "<<cnt<<" records!"<<endl;
     return DB_SUCCESS;
   }
-  else if(range->next_->next_->type_ == kNodeConditions){
+  else if(range->next_->next_->type_ == kNodeConditions)
+  {
     pSyntaxNode cond = range->next_->next_->child_;
     vector<Row*> origin_rows;
     for(auto it=tableinfo->GetTableHeap()->Begin(nullptr);it!=tableinfo->GetTableHeap()->End();it++){
@@ -895,7 +963,7 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
       }
       cout<<endl;
     }
-    cout<<"Select Success, Affects "<<ptr_rows.size()<<" Record!"<<endl;
+    cout<<"Select successfully, "<<ptr_rows.size()<<" records in total!"<<endl;
   }
   
   return DB_SUCCESS;
@@ -994,110 +1062,118 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
       return DB_SUCCESS;
   }*/
     string table_name=ast->child_->val_;
-    //锟矫碉拷tableinfo*
-    //锟斤拷锟斤拷一锟斤拷Row
+    //puts("gg");
     TableInfo *tableinfo = nullptr;
     dberr_t GetRet = cur_db->catalog_mgr_->GetTable(table_name, tableinfo);
-    if (GetRet==DB_TABLE_NOT_EXIST){
+    if (GetRet==DB_TABLE_NOT_EXIST)
+    {
         cout<<"Table Not Exist!"<<endl;
         return DB_FAILED;
     }
     vector<Field> fields;
-    pSyntaxNode column_pointer= ast->child_->next_->child_;//the head of inset values
-    int cnt = tableinfo->GetSchema()->GetColumnCount();// the number of columns
-    // cout<<"cnt:"<<cnt<<endl;
-    for ( int i = 0 ; i < cnt ; i ++ ){
+    pSyntaxNode column_pointer= ast->child_->next_->child_;
+    int cnt = tableinfo->GetSchema()->GetColumnCount();//number of column
+    for (int i=0; i<cnt; ++i)
+    {
         TypeId now_type_id = tableinfo->GetSchema()->GetColumn(i)->GetType();
-        if (column_pointer==nullptr){//tht end of all insert values
-            for ( int j = i ; j < cnt ; j ++ ){
-                //cout<<"has null!"<<endl;
-                Field new_field(tableinfo->GetSchema()->GetColumn(j)->GetType());
-                fields.push_back(new_field);
-            }
-            break;
+        if(column_pointer==nullptr)
+        {//tht end of all insert values
+              for(int j=i; j<cnt; ++j)
+              {
+                  Field new_field(tableinfo->GetSchema()->GetColumn(j)->GetType());
+                  fields.push_back(new_field);
+              }
+              break;
         }
-        if(column_pointer->val_==nullptr ){
-            //cout<<"has null!"<<endl;
+        if(column_pointer->val_==nullptr )
+        {
             Field new_field(now_type_id);
             fields.push_back(new_field);
         }
-        else{
+        else
+          {
             //cout<<"a number"<<endl;
-            if (now_type_id==kTypeInt){//锟斤拷锟斤拷
+            if (now_type_id==kTypeInt)
+            {
                 int x = atoi(column_pointer->val_);
                 Field new_field (now_type_id,x);
                 fields.push_back(new_field);
             }
-            else if(now_type_id==kTypeFloat){//锟斤拷锟斤拷锟斤拷
+            else if(now_type_id==kTypeFloat)
+            {
                 float f = atof(column_pointer->val_);
                 Field new_field (now_type_id,f);
                 fields.push_back(new_field);
             }
-            else {//锟街凤拷锟斤拷
+            else
+            {
                 string s = column_pointer->val_;
-                // uint32_t len=tableinfo->GetSchema()->GetColumn(i)->GetLength();
-                // cout<<"insert char length "<<len<<endl;
                 char *c = new char[s.size()];
                 strcpy(c,s.c_str());
                 Field new_field = Field(TypeId::kTypeChar, const_cast<char *>(c), s.size(), true);
-                // Field new_field (now_type_id,c,len,true);
                 fields.push_back(new_field);
             }
         }
         column_pointer = column_pointer->next_;
     }
-    if (column_pointer!=nullptr){
-        cout<<"Column Count doesn't match!"<<endl;
+    if (column_pointer!=nullptr)
+    {
+        std::cout<<"Column Count doesn't match!"<<std::endl;
         return DB_FAILED;
     }
-    Row row(fields);//鏋勫仴涓€涓猺ow瀵硅薄
-    ASSERT(tableinfo!=nullptr,"TableInfo is Null!");
-    TableHeap* tableheap=tableinfo->GetTableHeap();//寰楀埌鍫嗚〃绠＄悊鏉?
-    bool Is_Insert=tableheap->InsertTuple(row,nullptr);
-    if(Is_Insert==false){
-        cout<<"Insert Failed, Affects 0 Record!"<<endl;
+
+    Row row(fields);
+ //   ASSERT(tableinfo!=nullptr,"TableInfo is Null!");
+
+    TableHeap* tableheap=tableinfo->GetTableHeap();
+    bool Is_Insert=tableheap->InsertTuple(row,nullptr);//insert with tableheap
+
+    if(Is_Insert==false)
+    {
+        std::cout<<"Insert Failed"<<std::endl;
         return DB_FAILED;
-    }else{
-        vector <IndexInfo*> indexes;//寰楀埌鎵€鏈夌储寮曠殑TableInfo
+    }
+    else
+    {
+        vector <IndexInfo*> indexes;
         cur_db->catalog_mgr_->GetTableIndexes(table_name,indexes);
 
-        for(auto p=indexes.begin();p<indexes.end();p++){
-            //閬嶅巻鎵€鏈夌殑index
+        for(auto p=indexes.begin();p<indexes.end();p++)
+        {
             IndexSchema* index_schema = (*p)->GetIndexKeySchema();
             vector<Field> index_fields;
-            for(auto it:index_schema->GetColumns()){
+            for(auto it:index_schema->GetColumns())
+            {
                 index_id_t tmp;
-                if(tableinfo->GetSchema()->GetColumnIndex(it->GetName(),tmp)==DB_SUCCESS){
+                if(tableinfo->GetSchema()->GetColumnIndex(it->GetName(),tmp)==DB_SUCCESS)
                     index_fields.push_back(fields[tmp]);
-                }
             }
             Row index_row(index_fields);
             dberr_t IsInsert=(*p)->GetIndex()->InsertEntry(index_row,row.GetRowId(),nullptr);
             //cout<<"RowID: "<<row.GetRowId().Get()<<endl;
-            if(IsInsert==DB_FAILED){
-                //鎻掑叆澶辫触
-                cout<<"Insert Failed, Affects 0 Record!"<<endl;
-                //鎶婂墠闈㈡彃鍏ヨ繃鐨勫叏閮芥挙閿€鎺?
-                for(auto q=indexes.begin();q!=p;q++){
+            if(IsInsert==DB_FAILED)
+            {
+                cout<<"Insert Failed"<<endl;
+                for(auto q=indexes.begin();q!=p;q++)//remove the entries
+                {
                     IndexSchema* index_schema_already = (*q)->GetIndexKeySchema();
                     vector<Field> index_fields_already;
-                    for(auto it:index_schema_already->GetColumns()){
+                    for(auto it:index_schema_already->GetColumns())
+                    {
                         index_id_t tmp_already;
-                        if(tableinfo->GetSchema()->GetColumnIndex(it->GetName(),tmp_already)==DB_SUCCESS){
+                        if(tableinfo->GetSchema()->GetColumnIndex(it->GetName(),tmp_already)==DB_SUCCESS)
                             index_fields_already.push_back(fields[tmp_already]);
-                        }
                     }
                     Row index_row_already(index_fields_already);
                     (*q)->GetIndex()->RemoveEntry(index_row_already,row.GetRowId(),nullptr);
                 }
                 tableheap->MarkDelete(row.GetRowId(),nullptr);
                 return IsInsert;
-            }else{
-                //cout<<"Insert Into Index Sccess"<<endl;
             }
+            //else
+            //  std::cout<<"Insert Into Index Sccess"<<std::endl;
         }
-        //全锟斤拷锟斤拷锟杰诧拷锟饺ワ拷锟斤拷艹晒锟斤拷锟斤拷锟???
-        cout<<"Insert Success, Affects 1 Record!"<<endl;
+       // std::cout<<"Insert Success"<<std::endl;
         return DB_SUCCESS;
     }
   //return DB_FAILED;
@@ -1160,19 +1236,21 @@ dberr_t ExecuteEngine::ExecuteUpdate(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteUpdate" << std::endl;
 #endif
-  std::cout<<"This function doesn't work"<<std::endl;
+  //std::cout<<"This function doesn't work"<<std::endl;
   string table_name=ast->child_->val_;
   TableInfo *tableinfo = nullptr;
   dberr_t GetRet = cur_db->catalog_mgr_->GetTable(table_name, tableinfo);
-  if (GetRet==DB_TABLE_NOT_EXIST){
-    cout<<"Table Not Exist!"<<endl;
-    return DB_FAILED;
+  if (GetRet==DB_TABLE_NOT_EXIST)
+  {
+      cout<<"Table Not Exist!"<<endl;
+      return DB_FAILED;
   }
-  TableHeap* tableheap=tableinfo->GetTableHeap();//锟矫碉拷锟斤拷锟斤拷应锟斤拷锟侥硷拷锟斤拷
+  TableHeap* tableheap=tableinfo->GetTableHeap();
   auto updates = ast->child_->next_;
   vector<Row*> tar;
 
-  if(updates->next_==nullptr){//锟斤拷取锟斤拷锟斤拷选锟斤拷锟斤拷锟斤拷锟斤拷row锟斤拷锟斤拷锟斤拷vector<Row*> tar锟斤拷
+  if(updates->next_==nullptr)
+  {
     for(auto it=tableinfo->GetTableHeap()->Begin(nullptr);it!=tableinfo->GetTableHeap()->End();it++){
       Row* tp = new Row(*it);
       tar.push_back(tp);
@@ -1252,33 +1330,38 @@ dberr_t ExecuteEngine::ExecuteExecfile(pSyntaxNode ast, ExecuteContext *context)
   LOG(INFO) << "ExecuteExecfile" << std::endl;
 #endif
   string name = ast->child_->val_;
+  // the path of account_data
   string file_name = "/mnt/z/minisql-newdev/data/"+name;
-  //cout<<file_name;
+
   ifstream infile;
-  infile.open(file_name.data());//Connect a file stream object to a file
-  if (infile.is_open()){ //if open fails,return false
-    string s;
-    while(getline(infile,s)){//read line by line
-      YY_BUFFER_STATE bp = yy_scan_string(s.c_str());
-      if (bp == nullptr) {
-        LOG(ERROR) << "Failed to create yy buffer state." << std::endl;
-        exit(1);
+  infile.open(file_name.data());
+  if (infile.is_open())
+  { //if open fails,return false
+      string s;
+      while(getline(infile,s))
+      {//read line by line
+          YY_BUFFER_STATE bp = yy_scan_string(s.c_str());
+          if (bp == nullptr)
+          {
+              LOG(ERROR) << "Failed to create yy buffer state." << std::endl;
+              exit(1);
+          }
+          yy_switch_to_buffer(bp);
+          // init parser module
+          MinisqlParserInit();
+          // parse
+
+          yyparse();
+
+          ExecuteContext context;
+          Execute(MinisqlGetParserRootNode(), &context);
       }
-      yy_switch_to_buffer(bp);
-      // init parser module
-      MinisqlParserInit();
-      // parse
-
-      yyparse();
-
-      ExecuteContext context;
-      Execute(MinisqlGetParserRootNode(), &context);
-    }
-    return DB_SUCCESS;
+      return DB_SUCCESS;
   }
-  else{
-    cout<<"Failed In Opening File!"<<endl;
-    return DB_FAILED;
+  else
+  {
+      cout<<"Failed In Opening File!"<<endl;
+      return DB_FAILED;
   }
   //return DB_FAILED;
 }
