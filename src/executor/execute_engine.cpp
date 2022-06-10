@@ -12,7 +12,7 @@
 
 ExecuteEngine::ExecuteEngine() {
   //freopen("dbs.txt", "r", stdin);
-  FILE * fq;
+  /*FILE * fq;
   fq = fopen("dbs.txt", "r");
   int cnt;
   fscanf(fq, "%d", &cnt);
@@ -22,7 +22,7 @@ ExecuteEngine::ExecuteEngine() {
     fscanf(fq, "%s", tmp);
     DBStorageEngine * dbhead = new DBStorageEngine(tmp);
     dbs_[tmp] = dbhead;
-  }
+  }*/
 }
 
 dberr_t ExecuteEngine::Execute(pSyntaxNode ast, ExecuteContext *context) {
