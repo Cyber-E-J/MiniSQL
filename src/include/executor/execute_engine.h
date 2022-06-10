@@ -34,6 +34,10 @@ public:
   ExecuteEngine();
 
   ~ExecuteEngine() {
+    freopen("dbs.txt", "w", stdout);
+    std::cout<<dbs_.size()<<std::endl;
+    for(auto iter = dbs_.begin(); iter != dbs_.end(); ++iter)
+      std::cout<<iter->first<<std::endl;
     for (auto it : dbs_) {
       delete it.second;
     }
