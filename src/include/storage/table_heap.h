@@ -102,8 +102,13 @@ private:
           schema_(schema),
           log_manager_(log_manager),
           lock_manager_(lock_manager) {
-    first_page_id_ = INVALID_PAGE_ID;
-    cur_pid_ = INVALID_PAGE_ID;
+    buffer_pool_manager_->NewPage(first_page_id_);
+    cur_pid_ = first_page_id_;
+    auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(cur_pid_));
+    ASSERT(page != nullptr,"Can't create new page!");
+    page->Init(cur_pid_,INVALID_PAGE_ID,log_manager_,txn);
+    // first_page_id_=INVALID_PAGE_ID;
+    // cur_pid_=INVALID_PAGE_ID;
     // ASSERT(false, "Not implemented yet.");
   };
 
@@ -116,7 +121,13 @@ private:
             first_page_id_(first_page_id),
             schema_(schema),
             log_manager_(log_manager),
-            lock_manager_(lock_manager) {}
+            lock_manager_(lock_manager) {
+    auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id));          
+    for(cur_pid_ = first_page_id_; page->GetNextPageId() != INVALID_PAGE_ID; ){
+      cur_pid_ = page->GetNextPageId();
+      page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(cur_pid_));
+    }
+  }
 
 private:
   BufferPoolManager *buffer_pool_manager_;
