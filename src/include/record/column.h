@@ -34,6 +34,11 @@ public:
 
   static uint32_t DeserializeFrom(char *buf, Column *&column, MemHeap *heap);
 
+  bool IsUnique() const
+  {
+      return unique_;
+  }
+
 private:
   static constexpr uint32_t COLUMN_MAGIC_NUM = 210928;
   std::string name_;

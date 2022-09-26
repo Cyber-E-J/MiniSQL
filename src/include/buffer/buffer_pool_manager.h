@@ -24,11 +24,15 @@ public:
 
   bool FlushPage(page_id_t page_id);
 
+  bool FlushAllPage();
+
   Page *NewPage(page_id_t &page_id);
 
   bool DeletePage(page_id_t page_id);
 
   bool IsPageFree(page_id_t page_id);
+
+  bool CheckAllPinned();
 
   bool CheckAllUnpinned();
 

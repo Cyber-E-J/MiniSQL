@@ -3,7 +3,7 @@
 
 #include <list>
 #include <mutex>
-#include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 #include "buffer/replacer.h"
@@ -37,6 +37,13 @@ public:
 
 private:
   // add your own private member variables here
+  //# total pages
+  size_t num_pages_;
+  //to trace the page query frequency -> doubly linked list
+  list<frame_id_t> lru_list_ ;
+  //using to locate the nodes of the linked list
+  unordered_map<frame_id_t, list<frame_id_t>::iterator> list_mapping_;
+  //latch
+  mutex latch_;
 };
-
 #endif  // MINISQL_LRU_REPLACER_H

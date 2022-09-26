@@ -30,6 +30,12 @@ public:
    */
   bool IsPageFree(uint32_t page_offset) const;
 
+  //get data
+  unsigned char* GetBitmap_Data(void){return bytes;}
+
+  //ctor
+  //BitmapPage(){bytes[MAX_CHARS] = {0};}
+
 private:
   /**
    * check a bit(byte_index, bit_index) in bytes is free(value 0).
@@ -42,12 +48,15 @@ private:
 
   /** Note: need to update if modify page structure. */
   static constexpr size_t MAX_CHARS = PageSize - 2 * sizeof(uint32_t);
+  // MAX_CHARS: #byte
+  // content = page size - page meta size(2*sizeof(uint32_t))  => unit of byte
+  // bitmap stores everything in the unit of bit
 
 private:
   /** The space occupied by all members of the class should be equal to the PageSize */
-  [[maybe_unused]] uint32_t page_allocated_;
-  [[maybe_unused]] uint32_t next_free_page_;
-  [[maybe_unused]] unsigned char bytes[MAX_CHARS];
+  [[maybe_unused]] uint32_t page_allocated_=0;//add:=0
+  [[maybe_unused]] uint32_t next_free_page_=0;//add:=0
+  [[maybe_unused]] unsigned char bytes[MAX_CHARS]={0};//add:=0
 };
 
 #endif //MINISQL_BITMAP_PAGE_H

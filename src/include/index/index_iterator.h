@@ -5,11 +5,15 @@
 
 #define INDEXITERATOR_TYPE IndexIterator<KeyType, ValueType, KeyComparator>
 
+
 INDEX_TEMPLATE_ARGUMENTS
 class IndexIterator {
+  
+using LeafPage = BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>;
 public:
   // you may define your own constructor based on your member variables
   explicit IndexIterator();
+  explicit IndexIterator(LeafPage* leaf_page , int index_in_tree, BufferPoolManager* buffer_pool_manager);
 
   ~IndexIterator();
 
@@ -27,6 +31,10 @@ public:
 
 private:
   // add your own private member variables here
+  LeafPage * leaf_page_;
+  int index_in_tree_;
+  BufferPoolManager* buffer_pool_manager_;
+
 };
 
 

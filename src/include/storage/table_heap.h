@@ -1,11 +1,11 @@
 #ifndef MINISQL_TABLE_HEAP_H
 #define MINISQL_TABLE_HEAP_H
-
+#pragma once
 #include "buffer/buffer_pool_manager.h"
 #include "page/table_page.h"
-#include "storage/table_iterator.h"
 #include "transaction/log_manager.h"
 #include "transaction/lock_manager.h"
+#include "storage/table_iterator.h"
 
 class TableHeap {
   friend class TableIterator;
@@ -48,7 +48,7 @@ public:
    * @param[in] txn Transaction performing the update
    * @return true is update is successful.
    */
-  bool UpdateTuple(const Row &row, const RowId &rid, Transaction *txn);
+  bool UpdateTuple(Row &row, const RowId &rid, Transaction *txn);
 
   /**
    * Called on Commit/Abort to actually delete a tuple or rollback an insert.
@@ -102,7 +102,14 @@ private:
           schema_(schema),
           log_manager_(log_manager),
           lock_manager_(lock_manager) {
-    ASSERT(false, "Not implemented yet.");
+    buffer_pool_manager_->NewPage(first_page_id_);
+    cur_pid_ = first_page_id_;
+    auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(cur_pid_));
+    ASSERT(page != nullptr,"Can't create new page!");
+    page->Init(cur_pid_,INVALID_PAGE_ID,log_manager_,txn);
+    // first_page_id_=INVALID_PAGE_ID;
+    // cur_pid_=INVALID_PAGE_ID;
+    // ASSERT(false, "Not implemented yet.");
   };
 
   /**
@@ -114,11 +121,18 @@ private:
             first_page_id_(first_page_id),
             schema_(schema),
             log_manager_(log_manager),
-            lock_manager_(lock_manager) {}
+            lock_manager_(lock_manager) {
+    auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id));          
+    for(cur_pid_ = first_page_id_; page->GetNextPageId() != INVALID_PAGE_ID; ){
+      cur_pid_ = page->GetNextPageId();
+      page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(cur_pid_));
+    }
+  }
 
 private:
   BufferPoolManager *buffer_pool_manager_;
   page_id_t first_page_id_;
+  page_id_t cur_pid_;
   Schema *schema_;
   [[maybe_unused]] LogManager *log_manager_;
   [[maybe_unused]] LockManager *lock_manager_;

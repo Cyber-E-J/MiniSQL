@@ -3,6 +3,7 @@
 #include "glog/logging.h"
 #include "parser/syntax_tree_printer.h"
 #include "utils/tree_file_mgr.h"
+#include <time.h>
 
 extern "C" {
 int yyparse(void);
@@ -70,8 +71,17 @@ int main(int argc, char **argv) {
     }
 
     ExecuteContext context;
+
+    clock_t start, end;
+    start = clock();
+
+
     engine.Execute(MinisqlGetParserRootNode(), &context);
+
+    end = clock();
+    std::cout<<"This SQL statement takes "<<double (end - start)/CLOCKS_PER_SEC<<"s "<<std::endl;
     sleep(1);
+
 
     // clean memory after parse
     MinisqlParserFinish();
@@ -80,7 +90,7 @@ int main(int argc, char **argv) {
 
     // quit condition
     if (context.flag_quit_) {
-      printf("bye!\n");
+      printf("bye~ see u next time!\n");
       break;
     }
 

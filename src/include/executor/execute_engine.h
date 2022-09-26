@@ -6,8 +6,12 @@
 #include "common/dberr.h"
 #include "common/instance.h"
 #include "transaction/transaction.h"
+#include "parser/syntax_tree.h"
 
 extern "C" {
+int yyparse(void);
+FILE *yyyin;
+#include "parser/minisql_lex.h"
 #include "parser/parser.h"
 };
 
@@ -30,6 +34,10 @@ public:
   ExecuteEngine();
 
   ~ExecuteEngine() {
+    freopen("dbs.txt", "w", stdout);
+    std::cout<<dbs_.size()<<std::endl;
+    for(auto iter = dbs_.begin(); iter != dbs_.end(); ++iter)
+      std::cout<<iter->first<<std::endl;
     for (auto it : dbs_) {
       delete it.second;
     }
@@ -82,6 +90,7 @@ private:
 private:
   [[maybe_unused]] std::unordered_map<std::string, DBStorageEngine *> dbs_;  /** all opened databases */
   [[maybe_unused]] std::string current_db_;  /** current database */
+  DBStorageEngine * cur_db;
 };
 
 #endif //MINISQL_EXECUTE_ENGINE_H
